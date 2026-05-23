@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "NREpubReader",
+    "name": "ReadEPUB",
     "slug": "nrepubreader",
     "scheme": "nrepubreader",
     "version": "0.1.0",

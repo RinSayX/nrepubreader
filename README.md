@@ -1,4 +1,4 @@
-# NREpubReader
+# ReadEPUB
 
 跨平台本地 EPUB 阅读器，使用 Expo Dev Client、React Native、TypeScript、SQLite 和 WebView + epub.js 构建。
 
