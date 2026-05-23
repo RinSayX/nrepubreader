@@ -1,14 +1,13 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import * as FileSystem from "expo-file-system/legacy";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, FlatList, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Animated, FlatList, Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 
 import { encodeReaderMessage, parseWebReaderMessage, preferenceToReaderPayload } from "@/reader/messages";
 import { READER_HTML } from "@/reader/readerHtml";
 import {
-  currentTocLabel,
   getAncestorTocIdsForHref,
   getCollapsibleTocIds,
   getVisibleTocItems,
@@ -23,8 +22,10 @@ type Props = NativeStackScreenProps<RootStackParamList, "Reader">;
 
 export function ReaderScreen({ navigation, route }: Props) {
   const { bookId } = route.params;
+  const { width } = useWindowDimensions();
   const webRef = useRef<WebView>(null);
   const hasSentLoadRef = useRef(false);
+  const tocDrawerProgress = useRef(new Animated.Value(0)).current;
   const preference = useLibraryStore((state) => state.preference);
   const getBook = useLibraryStore((state) => state.getBook);
   const getProgress = useLibraryStore((state) => state.getProgress);
@@ -39,8 +40,13 @@ export function ReaderScreen({ navigation, route }: Props) {
   const [currentChapterHref, setCurrentChapterHref] = useState<string | null>(null);
   const [tocVisible, setTocVisible] = useState(false);
   const isDark = preference.themeMode === "dark";
+  const tocDrawerWidth = Math.min(Math.max(width * 0.82, 280), 380);
   const visibleToc = useMemo(() => getVisibleTocItems(toc, collapsedTocIds), [collapsedTocIds, toc]);
   const collapsibleTocIds = useMemo(() => getCollapsibleTocIds(toc), [toc]);
+  const tocDrawerTranslateX = tocDrawerProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-tocDrawerWidth, 0]
+  });
 
   const send = useCallback((message: ReaderToWebMessage) => {
     webRef.current?.injectJavaScript(`window.readerBridge && window.readerBridge.receive(${encodeReaderMessage(message)}); true;`);
@@ -112,7 +118,7 @@ export function ReaderScreen({ navigation, route }: Props) {
   function jumpToChapter(item: TocItem) {
     send({ type: "GO_TO_HREF", payload: { href: item.href } });
     setCurrentChapterHref(item.href);
-    setTocVisible(false);
+    closeToc();
   }
 
   function openToc() {
@@ -126,6 +132,25 @@ export function ReaderScreen({ navigation, route }: Props) {
     }
     setTocVisible(true);
   }
+
+  function closeToc() {
+    Animated.timing(tocDrawerProgress, {
+      toValue: 0,
+      duration: 180,
+      useNativeDriver: true
+    }).start(() => setTocVisible(false));
+  }
+
+  useEffect(() => {
+    if (tocVisible) {
+      tocDrawerProgress.setValue(0);
+      Animated.timing(tocDrawerProgress, {
+        toValue: 1,
+        duration: 220,
+        useNativeDriver: true
+      }).start();
+    }
+  }, [tocDrawerProgress, tocVisible]);
 
   function toggleTocItem(item: TocItem) {
     setCollapsedTocIds((current) => {
@@ -225,17 +250,21 @@ export function ReaderScreen({ navigation, route }: Props) {
         </View>
       </View>
 
-      <Modal visible={tocVisible} animationType="slide" transparent onRequestClose={() => setTocVisible(false)}>
+      <Modal visible={tocVisible} animationType="fade" transparent onRequestClose={closeToc}>
         <View style={styles.modalScrim}>
-          <View style={[styles.tocPanel, isDark && styles.darkTocPanel]}>
+          <Pressable style={styles.scrimCloseArea} onPress={closeToc} />
+          <Animated.View
+            style={[
+              styles.tocPanel,
+              { width: tocDrawerWidth, transform: [{ translateX: tocDrawerTranslateX }] },
+              isDark && styles.darkTocPanel
+            ]}
+          >
             <View style={styles.tocHeader}>
               <View style={styles.tocHeaderText}>
                 <Text style={[styles.tocTitle, isDark && styles.darkText]}>目录</Text>
-                <Text style={[styles.tocSubtitle, isDark && styles.darkMutedText]} numberOfLines={1}>
-                  {currentChapterHref ? `当前：${currentTocLabel(toc, currentChapterHref)}` : "当前章节待定位"}
-                </Text>
               </View>
-              <Pressable style={styles.closeButton} onPress={() => setTocVisible(false)}>
+              <Pressable style={styles.closeButton} onPress={closeToc}>
                 <Text style={styles.closeText}>关闭</Text>
               </Pressable>
             </View>
@@ -272,15 +301,14 @@ export function ReaderScreen({ navigation, route }: Props) {
                         {hasChildren ? (collapsed ? "+" : "-") : ""}
                       </Text>
                     </Pressable>
-                    <Text numberOfLines={2} style={[styles.tocItemText, isDark && styles.darkText, active && styles.activeTocText]}>
+                    <Text numberOfLines={1} style={[styles.tocItemText, isDark && styles.darkText, active && styles.activeTocText]}>
                       {item.label}
                     </Text>
-                    {active ? <Text style={styles.activeBadge}>当前</Text> : null}
                   </Pressable>
                 );
               }}
             />
-          </View>
+          </Animated.View>
         </View>
       </Modal>
     </SafeAreaView>
@@ -359,14 +387,17 @@ const styles = StyleSheet.create({
   },
   modalScrim: {
     flex: 1,
-    justifyContent: "flex-end",
+    justifyContent: "flex-start",
     backgroundColor: "rgba(0,0,0,0.35)"
   },
+  scrimCloseArea: {
+    ...StyleSheet.absoluteFillObject
+  },
   tocPanel: {
-    maxHeight: "78%",
-    minHeight: "52%",
-    borderTopLeftRadius: 8,
+    height: "100%",
+    zIndex: 1,
     borderTopRightRadius: 8,
+    borderBottomRightRadius: 8,
     backgroundColor: colors.paper,
     overflow: "hidden"
   },
@@ -374,7 +405,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.darkPanel
   },
   tocHeader: {
-    minHeight: 72,
+    minHeight: 64,
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
@@ -390,10 +421,6 @@ const styles = StyleSheet.create({
     color: colors.ink,
     fontSize: 20,
     fontWeight: "800"
-  },
-  tocSubtitle: {
-    color: colors.muted,
-    fontSize: 13
   },
   darkMutedText: {
     color: "#b8b1a6"
@@ -473,11 +500,6 @@ const styles = StyleSheet.create({
   },
   activeTocText: {
     color: colors.accent,
-    fontWeight: "800"
-  },
-  activeBadge: {
-    color: colors.accent,
-    fontSize: 12,
     fontWeight: "800"
   }
 });
