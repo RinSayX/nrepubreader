@@ -177,7 +177,7 @@ function LibraryBookRow({
           <Text style={styles.coverGlyph}>{item.title.slice(0, 1)}</Text>
         )}
       </View>
-      <Text style={[styles.bookTitle, { color: theme.text }]} numberOfLines={2}>
+      <Text style={[styles.bookTitle, { color: theme.text }]} numberOfLines={1}>
         {item.title}
       </Text>
     </Pressable>
