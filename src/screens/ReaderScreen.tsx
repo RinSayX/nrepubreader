@@ -301,7 +301,7 @@ export function ReaderScreen({ navigation, route }: Props) {
                         {hasChildren ? (collapsed ? "+" : "-") : ""}
                       </Text>
                     </Pressable>
-                    <Text numberOfLines={1} style={[styles.tocItemText, isDark && styles.darkText, active && styles.activeTocText]}>
+                    <Text numberOfLines={2} style={[styles.tocItemText, isDark && styles.darkText, active && styles.activeTocText]}>
                       {item.label}
                     </Text>
                   </Pressable>
