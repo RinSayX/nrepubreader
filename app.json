@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "NREpubReader",
+    "slug": "nrepubreader",
+    "scheme": "nrepubreader",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.rinsay.nrepubreader",
+      "infoPlist": {
+        "LSSupportsOpeningDocumentsInPlace": true,
+        "UISupportsDocumentBrowser": true
+      }
+    },
+    "android": {
+      "package": "com.rinsay.nrepubreader"
+    },
+    "plugins": [
+      "expo-sqlite",
+      "expo-font",
+      "expo-document-picker",
+      "expo-asset"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "local-dev"
+      }
+    }
+  }
+}
