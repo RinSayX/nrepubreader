@@ -5,12 +5,14 @@
     "scheme": "nrepubreader",
     "version": "0.1.0",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "assetBundlePatterns": [
       "**/*"
     ],
     "ios": {
       "supportsTablet": true,
+      "icon": "./assets/icon.png",
       "bundleIdentifier": "com.rinsay.nrepubreader",
       "infoPlist": {
         "LSSupportsOpeningDocumentsInPlace": true,
@@ -18,7 +20,11 @@
       }
     },
     "android": {
-      "package": "com.rinsay.nrepubreader"
+      "package": "com.rinsay.nrepubreader",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#061F55"
+      }
     },
     "plugins": [
       "expo-sqlite",
