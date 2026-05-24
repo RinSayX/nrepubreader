@@ -135,16 +135,6 @@ npm run typecheck
 npm run lint
 ```
 
-## 路线图
-
-- 用户自定义字体导入
-- 划线和笔记
-- 全文搜索
-- OPDS 或在线书库支持
-- 本地书库元数据备份 / 导出
-- 更好的 EPUB 兼容性
-- 将 epub.js 固化为本地资源，减少运行时网络依赖
-
 ## 参与贡献
 
 欢迎提交 Issue 和 Pull Request。
