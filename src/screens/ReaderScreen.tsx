@@ -57,6 +57,8 @@ export function ReaderScreen({ navigation, route }: Props) {
   });
   const leftTapZoneWidth = Math.max(0, width * PAGE_TAP_LEFT_RATIO - EDGE_GESTURE_GUARD);
   const rightTapZoneWidth = Math.max(0, width * (1 - PAGE_TAP_RIGHT_RATIO) - EDGE_GESTURE_GUARD);
+  const readerChromeStyle = { backgroundColor: preference.backgroundColor };
+  const readerChromeTextStyle = { color: preference.textColor };
 
   const send = useCallback((message: ReaderToWebMessage) => {
     webRef.current?.injectJavaScript(`window.readerBridge && window.readerBridge.receive(${encodeReaderMessage(message)}); true;`);
@@ -184,18 +186,18 @@ export function ReaderScreen({ navigation, route }: Props) {
 
   return (
     <SafeAreaView edges={["top", "bottom"]} style={[styles.root, { backgroundColor: preference.backgroundColor }]}>
-      <View style={[styles.topBar, isDark && styles.darkBar]}>
+      <View style={[styles.topBar, readerChromeStyle]}>
         <Pressable onPress={() => navigation.goBack()} style={styles.iconButton}>
-          <Text style={[styles.iconText, isDark && styles.darkText]}>返回</Text>
+          <Text style={[styles.iconText, readerChromeTextStyle]}>返回</Text>
         </Pressable>
-        <Text numberOfLines={1} style={[styles.readerTitle, isDark && styles.darkText]}>
+        <Text numberOfLines={1} style={[styles.readerTitle, readerChromeTextStyle]}>
           {book.title}
         </Text>
         <Pressable onPress={openToc} style={styles.iconButton}>
-          <Text style={[styles.iconText, isDark && styles.darkText]}>目录</Text>
+          <Text style={[styles.iconText, readerChromeTextStyle]}>目录</Text>
         </Pressable>
         <Pressable onPress={() => navigation.navigate("Settings")} style={styles.iconButton}>
-          <Text style={[styles.iconText, isDark && styles.darkText]}>设置</Text>
+          <Text style={[styles.iconText, readerChromeTextStyle]}>设置</Text>
         </Pressable>
       </View>
 
@@ -256,18 +258,18 @@ export function ReaderScreen({ navigation, route }: Props) {
         </View>
       </View>
 
-      <View style={[styles.bottomBar, isDark && styles.darkBar]}>
+      <View style={[styles.bottomBar, readerChromeStyle]}>
         <View style={styles.bottomSlot}>
           <Pressable style={styles.pageButton} onPress={() => send({ type: "PREV_PAGE" })}>
-            <Text style={[styles.pageText, isDark && styles.darkText]}>上一页</Text>
+            <Text style={[styles.pageText, readerChromeTextStyle]}>上一页</Text>
           </Pressable>
         </View>
         <View style={styles.progressSlot}>
-          <Text style={[styles.progress, isDark && styles.darkText]}>{progressLabel}</Text>
+          <Text style={[styles.progress, readerChromeTextStyle]}>{progressLabel}</Text>
         </View>
         <View style={[styles.bottomSlot, styles.rightSlot]}>
           <Pressable style={styles.pageButton} onPress={() => send({ type: "NEXT_PAGE" })}>
-            <Text style={[styles.pageText, isDark && styles.darkText]}>下一页</Text>
+            <Text style={[styles.pageText, readerChromeTextStyle]}>下一页</Text>
           </Pressable>
         </View>
       </View>
@@ -349,9 +351,6 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     backgroundColor: "rgba(251,247,239,0.96)"
   },
-  darkBar: {
-    backgroundColor: "rgba(21,21,21,0.96)"
-  },
   iconButton: {
     minWidth: 56,
     minHeight: 40,
@@ -359,7 +358,6 @@ const styles = StyleSheet.create({
     justifyContent: "center"
   },
   iconText: {
-    color: colors.accent,
     fontWeight: "800"
   },
   readerTitle: {
@@ -390,8 +388,7 @@ const styles = StyleSheet.create({
     minHeight: 54,
     paddingHorizontal: spacing.md,
     flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(251,247,239,0.96)"
+    alignItems: "center"
   },
   bottomSlot: {
     flex: 1,
@@ -411,7 +408,6 @@ const styles = StyleSheet.create({
     justifyContent: "center"
   },
   pageText: {
-    color: colors.accent,
     fontWeight: "800"
   },
   progress: {
