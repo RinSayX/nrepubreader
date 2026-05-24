@@ -23,7 +23,7 @@
       "package": "com.rinsay.nrepubreader",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#061F55"
+        "backgroundColor": "#16A451"
       }
     },
     "plugins": [
