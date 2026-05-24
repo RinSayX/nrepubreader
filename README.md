@@ -153,4 +153,4 @@ npm run lint
 
 ## 许可证
 
-当前还没有添加许可证。如果该仓库计划作为开源项目长期维护，建议补充一个许可证文件，例如 MIT、Apache-2.0 或 GPL。
+本项目基于 [MIT License](./LICENSE) 开源。
