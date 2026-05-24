@@ -59,7 +59,7 @@ export default function App() {
         >
           <Stack.Screen name="Library" component={LibraryScreen} options={{ title: "书库" }} />
           <Stack.Screen name="BookDetail" component={BookDetailScreen} options={{ title: "书籍详情" }} />
-          <Stack.Screen name="Series" component={SeriesScreen} options={{ title: "系列" }} />
+          <Stack.Screen name="Series" component={SeriesScreen} options={({ route }) => ({ title: route.params.seriesName ?? "系列详情" })} />
           <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: "阅读设置" }} />
           <Stack.Screen name="Reader" component={ReaderScreen} options={{ title: "", headerShown: false }} />
         </Stack.Navigator>

@@ -82,7 +82,7 @@ export function LibraryScreen({ navigation }: Props) {
       const created = await createSeries(name);
       setSeriesName("");
       setCreateSeriesVisible(false);
-      navigation.navigate("Series", { seriesId: created.id });
+      navigation.navigate("Series", { seriesId: created.id, seriesName: created.name });
     } catch {
       Alert.alert("创建失败", "请换一个系列名称。");
     }
@@ -244,7 +244,7 @@ export function LibraryScreen({ navigation }: Props) {
               managing
                 ? toggleSelection(item)
                 : item.type === "series"
-                  ? navigation.navigate("Series", { seriesId: item.id })
+                  ? navigation.navigate("Series", { seriesId: item.id, seriesName: item.title })
                   : navigation.navigate("BookDetail", { bookId: item.id })
             }
           />

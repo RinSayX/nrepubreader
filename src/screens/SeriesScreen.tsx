@@ -16,11 +16,11 @@ type Props = NativeStackScreenProps<RootStackParamList, "Series">;
 export function SeriesScreen({ navigation, route }: Props) {
   const { seriesId } = route.params;
   const series = useLibraryStore((state) => state.series.find((item) => item.id === seriesId));
+  const seriesSummary = useLibraryStore((state) => state.seriesSummaries.find((item) => item.id === seriesId));
   const allBooks = useLibraryStore((state) => state.books);
   const loading = useLibraryStore((state) => state.loading);
   const preference = useLibraryStore((state) => state.preference);
   const listBooksInSeries = useLibraryStore((state) => state.listBooksInSeries);
-  const deleteSeries = useLibraryStore((state) => state.deleteSeries);
   const deleteBooks = useLibraryStore((state) => state.deleteBooks);
   const addBookToSeries = useLibraryStore((state) => state.addBookToSeries);
   const importBookToSeries = useLibraryStore((state) => state.importBookToSeries);
@@ -32,7 +32,10 @@ export function SeriesScreen({ navigation, route }: Props) {
   const isUnassigned = seriesId === UNASSIGNED_SERIES_ID;
   const theme = getAppTheme(preference);
 
-  const title = useMemo(() => (isUnassigned ? UNASSIGNED_SERIES_NAME : (series?.name ?? "系列")), [isUnassigned, series?.name]);
+  const title = useMemo(
+    () => (isUnassigned ? UNASSIGNED_SERIES_NAME : (series?.name ?? seriesSummary?.name ?? route.params.seriesName ?? "系列详情")),
+    [isUnassigned, route.params.seriesName, series?.name, seriesSummary?.name]
+  );
   const addableBooks = useMemo(
     () => allBooks.filter((book) => !books.some((seriesBook) => seriesBook.id === book.id)),
     [allBooks, books]
@@ -49,6 +52,10 @@ export function SeriesScreen({ navigation, route }: Props) {
       setLoadError("加载系列图书失败，请返回书库后重试。");
     });
   }, [refreshSeriesBooks]);
+
+  useEffect(() => {
+    navigation.setOptions({ title });
+  }, [navigation, title]);
 
   useEffect(() => {
     setSelectedBookIds((current) => {
@@ -73,23 +80,6 @@ export function SeriesScreen({ navigation, route }: Props) {
       }
       return next;
     });
-  }
-
-  function confirmDelete() {
-    if (isUnassigned) {
-      return;
-    }
-
-    Alert.alert("删除系列", "只删除系列分组，不会删除书籍。", [
-      { text: "取消", style: "cancel" },
-      {
-        text: "删除",
-        style: "destructive",
-        onPress: () => {
-          void deleteSeries(seriesId).then(() => navigation.goBack());
-        }
-      }
-    ]);
   }
 
   function confirmDeleteSelectedBooks() {
@@ -177,11 +167,6 @@ export function SeriesScreen({ navigation, route }: Props) {
               <PrimaryButton variant="secondary" onPress={() => setManaging(true)} disabled={books.length === 0}>
                 管理
               </PrimaryButton>
-              {!isUnassigned ? (
-                <PrimaryButton variant="danger" onPress={confirmDelete}>
-                  删除系列
-                </PrimaryButton>
-              ) : null}
             </>
           )}
         </View>

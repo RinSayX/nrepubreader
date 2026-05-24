@@ -62,7 +62,7 @@ export type TocItem = {
 export type RootStackParamList = {
   Library: undefined;
   BookDetail: { bookId: string };
-  Series: { seriesId: string };
+  Series: { seriesId: string; seriesName?: string };
   Settings: undefined;
   Reader: { bookId: string };
 };
