@@ -65,7 +65,6 @@ export function BookDetailScreen({ navigation, route }: Props) {
         <View style={styles.heroText}>
           <Text style={[styles.title, { color: theme.text }]}>{book.title}</Text>
           <Text style={[styles.author, { color: theme.muted }]}>{book.author ?? "未知作者"}</Text>
-          <Text style={[styles.muted, { color: theme.muted }]}>{book.identifier ?? "无书籍标识"}</Text>
         </View>
       </View>
 

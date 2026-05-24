@@ -57,7 +57,8 @@ export const READER_HTML = String.raw`
         rendition: null,
         theme: null,
         font: null,
-        transfer: null
+        transfer: null,
+        locationsReady: false
       };
 
       const SWIPE_EDGE_GUARD = 44;
@@ -155,15 +156,11 @@ export const READER_HTML = String.raw`
 
       function computeReadingPercentage(location) {
         const cfi = location.start?.cfi;
-        if (state.book.locations && cfi) {
+        if (state.locationsReady && state.book.locations && cfi) {
           const locationPercentage = state.book.locations.percentageFromCfi(cfi);
-          if (Number.isFinite(locationPercentage) && locationPercentage > 0) {
+          if (Number.isFinite(locationPercentage)) {
             return clampPercentage(locationPercentage);
           }
-        }
-
-        if (Number.isFinite(location.start?.percentage) && location.start.percentage > 0) {
-          return clampPercentage(location.start.percentage);
         }
 
         const spineItems = state.book.spine?.spineItems || state.book.spine?.items || [];
@@ -211,7 +208,8 @@ export const READER_HTML = String.raw`
 
         doc.addEventListener("touchend", (event) => {
           const touch = event.changedTouches && event.changedTouches[0];
-          if (!touch || startedInSystemGestureZone || !state.rendition) {
+          const width = view.innerWidth || window.innerWidth || 0;
+          if (!touch || startedInSystemGestureZone || !state.rendition || width <= 0) {
             return;
           }
 
@@ -220,14 +218,13 @@ export const READER_HTML = String.raw`
           const absX = Math.abs(deltaX);
           const absY = Math.abs(deltaY);
 
-          if (absX < SWIPE_MIN_DISTANCE || absY > SWIPE_MAX_VERTICAL_DISTANCE || absX < absY * 1.35) {
+          if (absX >= SWIPE_MIN_DISTANCE && absY <= SWIPE_MAX_VERTICAL_DISTANCE && absX >= absY * 1.35) {
+            if (deltaX < 0) {
+              state.rendition.next();
+            } else {
+              state.rendition.prev();
+            }
             return;
-          }
-
-          if (deltaX < 0) {
-            state.rendition.next();
-          } else {
-            state.rendition.prev();
           }
         }, { passive: true });
       }
@@ -255,6 +252,7 @@ export const READER_HTML = String.raw`
           }
 
           state.bookId = payload.bookId;
+          state.locationsReady = false;
           document.getElementById("loader").style.display = "flex";
           document.getElementById("error").style.display = "none";
           setLoaderText("正在打开书籍");
@@ -302,6 +300,7 @@ export const READER_HTML = String.raw`
 
           state.book.locations.generate(1200)
             .then(() => {
+              state.locationsReady = true;
               const currentLocation = state.rendition.currentLocation();
               if (currentLocation?.start) {
                 postLocation(currentLocation);

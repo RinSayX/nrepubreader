@@ -20,7 +20,8 @@ type LibraryStore = {
   initialize: () => Promise<void>;
   refresh: () => Promise<void>;
   setSortMode: (sortMode: SortMode) => Promise<void>;
-  importBook: () => Promise<void>;
+  importBook: () => Promise<Book[]>;
+  importBookToSeries: (seriesId: string) => Promise<Book[]>;
   deleteBook: (book: Book) => Promise<void>;
   markBookOpened: (bookId: string) => Promise<void>;
   createSeries: (name: string, description?: string | null) => Promise<Series>;
@@ -94,12 +95,35 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
     try {
       const db = await getDatabase();
       const repo = new LibraryRepository(db);
-      const imported = await new BookImportService(repo).pickAndImport();
-      if (imported) {
+      const imported = await new BookImportService(repo).pickAndImportMany();
+      if (imported.length > 0) {
         await get().refresh();
       }
+      return imported;
     } catch (error) {
       set({ error: errorMessage(error) });
+      return [];
+    } finally {
+      set({ loading: false });
+    }
+  },
+
+  async importBookToSeries(seriesId) {
+    set({ loading: true, error: null });
+    try {
+      const db = await getDatabase();
+      const repo = new LibraryRepository(db);
+      const imported = await new BookImportService(repo).pickAndImportMany();
+      if (imported.length > 0) {
+        for (const book of imported) {
+          await repo.addBookToSeries(book.id, seriesId);
+        }
+        await get().refresh();
+      }
+      return imported;
+    } catch (error) {
+      set({ error: errorMessage(error) });
+      throw error;
     } finally {
       set({ loading: false });
     }

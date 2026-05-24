@@ -13,17 +13,26 @@ export class BookImportService {
   constructor(private readonly libraryRepository: LibraryRepository) {}
 
   async pickAndImport(): Promise<Book | null> {
+    const books = await this.pickAndImportMany();
+    return books[0] ?? null;
+  }
+
+  async pickAndImportMany(): Promise<Book[]> {
     const result = await DocumentPicker.getDocumentAsync({
       type: ["application/epub+zip", "application/octet-stream"],
       copyToCacheDirectory: true,
-      multiple: false
+      multiple: true
     });
 
-    if (result.canceled || !result.assets[0]) {
-      return null;
+    if (result.canceled) {
+      return [];
     }
 
-    return this.importFromUri(result.assets[0].uri, result.assets[0].name);
+    const imported: Book[] = [];
+    for (const asset of result.assets) {
+      imported.push(await this.importFromUri(asset.uri, asset.name));
+    }
+    return imported;
   }
 
   async importFromUri(uri: string, originalName: string): Promise<Book> {

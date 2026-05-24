@@ -20,6 +20,14 @@ import type { Book, ReaderToWebMessage, RootStackParamList, TocItem } from "@/ty
 
 type Props = NativeStackScreenProps<RootStackParamList, "Reader">;
 
+const EDGE_GESTURE_GUARD = 44;
+const PAGE_TAP_LEFT_RATIO = 0.36;
+const PAGE_TAP_RIGHT_RATIO = 0.64;
+
+function formatBookProgress(percentage: number) {
+  return `${Math.round(Math.max(0, Math.min(1, percentage)) * 100)}%`;
+}
+
 export function ReaderScreen({ navigation, route }: Props) {
   const { bookId } = route.params;
   const { width } = useWindowDimensions();
@@ -34,7 +42,7 @@ export function ReaderScreen({ navigation, route }: Props) {
   const [book, setBook] = useState<Book | null>(null);
   const [initialCfi, setInitialCfi] = useState<string | null>(null);
   const [webReady, setWebReady] = useState(false);
-  const [progressLabel, setProgressLabel] = useState("0%");
+  const [progressLabel, setProgressLabel] = useState(formatBookProgress(0));
   const [toc, setToc] = useState<TocItem[]>([]);
   const [collapsedTocIds, setCollapsedTocIds] = useState<Set<string>>(new Set());
   const [currentChapterHref, setCurrentChapterHref] = useState<string | null>(null);
@@ -47,6 +55,8 @@ export function ReaderScreen({ navigation, route }: Props) {
     inputRange: [0, 1],
     outputRange: [-tocDrawerWidth, 0]
   });
+  const leftTapZoneWidth = Math.max(0, width * PAGE_TAP_LEFT_RATIO - EDGE_GESTURE_GUARD);
+  const rightTapZoneWidth = Math.max(0, width * (1 - PAGE_TAP_RIGHT_RATIO) - EDGE_GESTURE_GUARD);
 
   const send = useCallback((message: ReaderToWebMessage) => {
     webRef.current?.injectJavaScript(`window.readerBridge && window.readerBridge.receive(${encodeReaderMessage(message)}); true;`);
@@ -86,7 +96,7 @@ export function ReaderScreen({ navigation, route }: Props) {
       setBook(nextBook);
       setInitialCfi(progress?.cfi ?? null);
       if (progress) {
-        setProgressLabel(`${Math.round(Math.max(0, Math.min(1, progress.percentage)) * 100)}%`);
+        setProgressLabel(formatBookProgress(progress.percentage));
       }
     });
   }, [bookId, getBook, getProgress]);
@@ -189,50 +199,62 @@ export function ReaderScreen({ navigation, route }: Props) {
         </Pressable>
       </View>
 
-      <WebView
-        ref={webRef}
-        originWhitelist={["*"]}
-        source={{ html: READER_HTML, baseUrl: "" }}
-        javaScriptEnabled
-        scrollEnabled={false}
-        bounces={false}
-        overScrollMode="never"
-        showsVerticalScrollIndicator={false}
-        showsHorizontalScrollIndicator={false}
-        onMessage={(event) => {
-          const message = parseWebReaderMessage(event.nativeEvent.data);
-          if (!message) {
-            return;
-          }
+      <View style={styles.readerSurface}>
+        <WebView
+          ref={webRef}
+          originWhitelist={["*"]}
+          source={{ html: READER_HTML, baseUrl: "" }}
+          javaScriptEnabled
+          scrollEnabled={false}
+          bounces={false}
+          overScrollMode="never"
+          showsVerticalScrollIndicator={false}
+          showsHorizontalScrollIndicator={false}
+          onMessage={(event) => {
+            const message = parseWebReaderMessage(event.nativeEvent.data);
+            if (!message) {
+              return;
+            }
 
-          if (message.type === "WEB_READY") {
-            setWebReady(true);
-          }
+            if (message.type === "WEB_READY") {
+              setWebReady(true);
+            }
 
-          if (message.type === "BOOK_READY") {
-            const nextToc = message.payload.toc.filter((item) => Boolean(item.href));
-            setToc(nextToc);
-            setCollapsedTocIds(new Set(getCollapsibleTocIds(nextToc)));
-          }
+            if (message.type === "BOOK_READY") {
+              const nextToc = message.payload.toc.filter((item) => Boolean(item.href));
+              setToc(nextToc);
+              setCollapsedTocIds(new Set(getCollapsibleTocIds(nextToc)));
+            }
 
-          if (message.type === "LOCATION_CHANGED") {
-            const percentage = Math.max(0, Math.min(1, message.payload.percentage));
-            setCurrentChapterHref(message.payload.chapterHref);
-            setProgressLabel(`${Math.round(percentage * 100)}%`);
-            void saveProgress({
-              bookId: message.payload.bookId,
-              chapterHref: message.payload.chapterHref,
-              cfi: message.payload.cfi,
-              percentage
-            });
-          }
+            if (message.type === "LOCATION_CHANGED") {
+              const percentage = Math.max(0, Math.min(1, message.payload.percentage));
+              setCurrentChapterHref(message.payload.chapterHref);
+              setProgressLabel(formatBookProgress(percentage));
+              void saveProgress({
+                bookId: message.payload.bookId,
+                chapterHref: message.payload.chapterHref,
+                cfi: message.payload.cfi,
+                percentage
+              });
+            }
 
-          if (message.type === "RENDER_ERROR") {
-            Alert.alert("打开失败", message.payload.message);
-          }
-        }}
-        style={styles.webview}
-      />
+            if (message.type === "RENDER_ERROR") {
+              Alert.alert("打开失败", message.payload.message);
+            }
+          }}
+          style={styles.webview}
+        />
+        <View pointerEvents="box-none" style={styles.tapOverlay}>
+          <Pressable
+            style={[styles.pageTapZone, { left: EDGE_GESTURE_GUARD, width: leftTapZoneWidth }]}
+            onPress={() => send({ type: "PREV_PAGE" })}
+          />
+          <Pressable
+            style={[styles.pageTapZone, { right: EDGE_GESTURE_GUARD, width: rightTapZoneWidth }]}
+            onPress={() => send({ type: "NEXT_PAGE" })}
+          />
+        </View>
+      </View>
 
       <View style={[styles.bottomBar, isDark && styles.darkBar]}>
         <View style={styles.bottomSlot}>
@@ -352,6 +374,17 @@ const styles = StyleSheet.create({
   webview: {
     flex: 1,
     backgroundColor: "transparent"
+  },
+  readerSurface: {
+    flex: 1
+  },
+  tapOverlay: {
+    ...StyleSheet.absoluteFillObject
+  },
+  pageTapZone: {
+    position: "absolute",
+    top: 0,
+    bottom: 0
   },
   bottomBar: {
     minHeight: 54,

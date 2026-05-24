@@ -28,6 +28,8 @@ describe("reader HTML dependencies", () => {
   it("computes progress before and after full location generation", () => {
     expect(READER_HTML).toContain("computeReadingPercentage");
     expect(READER_HTML).toContain("state.rendition.currentLocation()");
+    expect(READER_HTML).toContain("locationsReady");
+    expect(READER_HTML).not.toContain("location.start?.percentage");
   });
 
   it("locks only the outer reader scroll without clipping epub iframe pages", () => {
@@ -41,5 +43,10 @@ describe("reader HTML dependencies", () => {
     expect(READER_HTML).toContain("SWIPE_EDGE_GUARD");
     expect(READER_HTML).toContain("state.rendition.next()");
     expect(READER_HTML).toContain("state.rendition.prev()");
+  });
+
+  it("keeps tap page navigation outside the epub iframe coordinate system", () => {
+    expect(READER_HTML).not.toContain("TAP_LEFT_RATIO");
+    expect(READER_HTML).not.toContain("TAP_RIGHT_RATIO");
   });
 });

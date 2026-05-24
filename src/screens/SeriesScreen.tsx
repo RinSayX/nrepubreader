@@ -17,10 +17,12 @@ export function SeriesScreen({ navigation, route }: Props) {
   const { seriesId } = route.params;
   const series = useLibraryStore((state) => state.series.find((item) => item.id === seriesId));
   const allBooks = useLibraryStore((state) => state.books);
+  const loading = useLibraryStore((state) => state.loading);
   const preference = useLibraryStore((state) => state.preference);
   const listBooksInSeries = useLibraryStore((state) => state.listBooksInSeries);
   const deleteSeries = useLibraryStore((state) => state.deleteSeries);
   const addBookToSeries = useLibraryStore((state) => state.addBookToSeries);
+  const importBookToSeries = useLibraryStore((state) => state.importBookToSeries);
   const [books, setBooks] = useState<Book[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [addVisible, setAddVisible] = useState(false);
@@ -65,8 +67,22 @@ export function SeriesScreen({ navigation, route }: Props) {
     try {
       await addBookToSeries(book.id, seriesId);
       await refreshSeriesBooks();
+      setLoadError(null);
     } catch {
       setLoadError("添加图书失败，请稍后重试。");
+    }
+  }
+
+  async function importBook() {
+    try {
+      const imported = await importBookToSeries(seriesId);
+      if (imported.length > 0) {
+        await refreshSeriesBooks();
+        setAddVisible(false);
+        setLoadError(null);
+      }
+    } catch {
+      setLoadError("导入图书失败，请确认文件为 EPUB 后重试。");
     }
   }
 
@@ -122,6 +138,11 @@ export function SeriesScreen({ navigation, route }: Props) {
               </View>
               <PrimaryButton variant="secondary" onPress={() => setAddVisible(false)}>
                 关闭
+              </PrimaryButton>
+            </View>
+            <View style={styles.addActions}>
+              <PrimaryButton onPress={importBook} disabled={loading}>
+                导入 EPUB
               </PrimaryButton>
             </View>
 
@@ -228,6 +249,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
+    marginBottom: spacing.md
+  },
+  addActions: {
+    flexDirection: "row",
     marginBottom: spacing.md
   },
   addTitle: {
