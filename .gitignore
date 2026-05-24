@@ -1,7 +1,9 @@
 node_modules/
 .expo/
+.idea/
 dist/
 coverage/
 ios/
 android/
 *.log
+.DS_Store
