@@ -23,6 +23,8 @@ type LibraryStore = {
   importBook: () => Promise<Book[]>;
   importBookToSeries: (seriesId: string) => Promise<Book[]>;
   deleteBook: (book: Book) => Promise<void>;
+  deleteBooks: (books: Book[]) => Promise<void>;
+  deleteSeriesAndBooks: (seriesId: string) => Promise<{ deletedBooks: number }>;
   markBookOpened: (bookId: string) => Promise<void>;
   createSeries: (name: string, description?: string | null) => Promise<Series>;
   updateSeries: (seriesId: string, patch: Pick<Series, "name" | "description">) => Promise<void>;
@@ -137,6 +139,50 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
     await get().refresh();
   },
 
+  async deleteBooks(books) {
+    const uniqueBooks = uniqueBooksById(books);
+    if (uniqueBooks.length === 0) {
+      return;
+    }
+
+    set({ loading: true, error: null });
+    try {
+      const db = await getDatabase();
+      const repo = new LibraryRepository(db);
+      for (const book of uniqueBooks) {
+        await repo.deleteBook(book);
+      }
+      await Promise.all(uniqueBooks.map(deleteBookFiles));
+      await get().refresh();
+    } catch (error) {
+      set({ error: errorMessage(error) });
+      throw error;
+    } finally {
+      set({ loading: false });
+    }
+  },
+
+  async deleteSeriesAndBooks(seriesId) {
+    set({ loading: true, error: null });
+    try {
+      const db = await getDatabase();
+      const repo = new LibraryRepository(db);
+      const books = await repo.listBooksInSeries(seriesId);
+      for (const book of books) {
+        await repo.deleteBook(book);
+      }
+      await repo.deleteSeries(seriesId);
+      await Promise.all(books.map(deleteBookFiles));
+      await get().refresh();
+      return { deletedBooks: books.length };
+    } catch (error) {
+      set({ error: errorMessage(error) });
+      throw error;
+    } finally {
+      set({ loading: false });
+    }
+  },
+
   async markBookOpened(bookId) {
     const db = await getDatabase();
     await new LibraryRepository(db).markOpened(bookId);
@@ -208,4 +254,15 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "操作失败，请稍后重试。";
+}
+
+function uniqueBooksById(books: Book[]) {
+  const seen = new Set<string>();
+  return books.filter((book) => {
+    if (seen.has(book.id)) {
+      return false;
+    }
+    seen.add(book.id);
+    return true;
+  });
 }

@@ -1,6 +1,7 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
-import { ActivityIndicator, Alert, FlatList, Image, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { ActivityIndicator, Alert, FlatList, Image, Modal, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { PrimaryButton } from "@/components/PrimaryButton";
@@ -26,6 +27,7 @@ type LibraryItem =
       sortTitle: string;
       recentDate: string | null;
       createdDate: string;
+      bookCount: number;
     }
   | {
       type: "book";
@@ -47,8 +49,15 @@ export function LibraryScreen({ navigation }: Props) {
   const preference = useLibraryStore((state) => state.preference);
   const importBook = useLibraryStore((state) => state.importBook);
   const createSeries = useLibraryStore((state) => state.createSeries);
+  const deleteBooks = useLibraryStore((state) => state.deleteBooks);
+  const deleteSeriesAndBooks = useLibraryStore((state) => state.deleteSeriesAndBooks);
   const [seriesName, setSeriesName] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [addMenuVisible, setAddMenuVisible] = useState(false);
+  const [settingsMenuVisible, setSettingsMenuVisible] = useState(false);
+  const [managing, setManaging] = useState(false);
+  const [createSeriesVisible, setCreateSeriesVisible] = useState(false);
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const libraryItems = useMemo(
     () => sortLibraryItems([...seriesSummaries.map(seriesToItem), ...unassignedBooks.map(bookToItem)]),
     [seriesSummaries, unassignedBooks]
@@ -58,6 +67,11 @@ export function LibraryScreen({ navigation }: Props) {
   const availableGridWidth = Math.max(0, width - SCREEN_HORIZONTAL_PADDING - GRID_GAP * (GRID_COLUMNS - 1));
   const cardWidth = Math.max(1, Math.floor(availableGridWidth / GRID_COLUMNS));
   const theme = getAppTheme(preference);
+  const selectedItems = useMemo(
+    () => libraryItems.filter((item) => selectedKeys.has(libraryItemKey(item))),
+    [libraryItems, selectedKeys]
+  );
+  const selectedBookCount = selectedItems.reduce((sum, item) => sum + (item.type === "series" ? item.bookCount : 1), 0);
 
   async function handleCreateSeries() {
     const name = seriesName.trim();
@@ -67,59 +81,139 @@ export function LibraryScreen({ navigation }: Props) {
     try {
       const created = await createSeries(name);
       setSeriesName("");
+      setCreateSeriesVisible(false);
       navigation.navigate("Series", { seriesId: created.id });
     } catch {
       Alert.alert("创建失败", "请换一个系列名称。");
     }
   }
 
+  function exitManageMode() {
+    setManaging(false);
+    setSelectedKeys(new Set());
+  }
+
+  async function handleImportBook() {
+    setAddMenuVisible(false);
+    await importBook();
+  }
+
+  function openCreateSeries() {
+    setAddMenuVisible(false);
+    setCreateSeriesVisible(true);
+  }
+
+  function openReaderSettings() {
+    setSettingsMenuVisible(false);
+    navigation.navigate("Settings");
+  }
+
+  function enterManageMode() {
+    setSettingsMenuVisible(false);
+    setManaging(true);
+  }
+
+  function toggleSelection(item: LibraryItem) {
+    const key = libraryItemKey(item);
+    setSelectedKeys((current) => {
+      const next = new Set(current);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  }
+
+  function confirmDeleteSelected() {
+    if (selectedItems.length === 0) {
+      return;
+    }
+
+    const selectedBooks = unassignedBooks.filter((book) => selectedKeys.has(libraryItemKey(bookToItem(book))));
+    const selectedSeries = seriesSummaries.filter((series) => selectedKeys.has(libraryItemKey(seriesToItem(series))));
+    const nonEmptySeriesCount = selectedSeries.filter((series) => series.bookCount > 0).length;
+    const emptySeriesCount = selectedSeries.length - nonEmptySeriesCount;
+    const messageParts = [];
+
+    if (selectedBooks.length > 0) {
+      messageParts.push(`${selectedBooks.length} 本未加入系列的书`);
+    }
+    if (nonEmptySeriesCount > 0) {
+      const booksInSeriesCount = selectedSeries.reduce((sum, series) => sum + series.bookCount, 0);
+      messageParts.push(`${nonEmptySeriesCount} 个系列及其中 ${booksInSeriesCount} 本书`);
+    }
+    if (emptySeriesCount > 0) {
+      messageParts.push(`${emptySeriesCount} 个空系列`);
+    }
+    const deleteBookFilesNote =
+      selectedBookCount > 0 ? "相关书籍文件、封面和阅读进度会从本机移除，删除后无法恢复。" : "空系列删除后无法恢复。";
+
+    Alert.alert(
+      "删除所选内容",
+      `将删除 ${messageParts.join("、")}。${deleteBookFilesNote}`,
+      [
+        { text: "取消", style: "cancel" },
+        {
+          text: "删除",
+          style: "destructive",
+          onPress: () => {
+            void (async () => {
+              try {
+                if (selectedBooks.length > 0) {
+                  await deleteBooks(selectedBooks);
+                }
+                for (const series of selectedSeries) {
+                  await deleteSeriesAndBooks(series.id);
+                }
+                exitManageMode();
+              } catch {
+                Alert.alert("删除失败", "部分内容可能没有删除成功，请刷新后重试。");
+              }
+            })();
+          }
+        }
+      ]
+    );
+  }
+
   return (
     <SafeAreaView edges={["bottom"]} style={[styles.root, { backgroundColor: theme.background }]}>
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: theme.text }]}>我的书库</Text>
-        <View style={styles.headerActions}>
-          <PrimaryButton variant="secondary" onPress={() => navigation.navigate("Settings")}>
-            阅读设置
-          </PrimaryButton>
-          <PrimaryButton onPress={importBook} disabled={loading}>
-            导入 EPUB
-          </PrimaryButton>
+      {managing ? (
+        <View style={styles.manageToolbar}>
+          <View style={styles.manageCopy}>
+            <Text style={[styles.manageTitle, { color: theme.text }]}>管理书库</Text>
+            <Text style={[styles.manageHint, { color: theme.muted }]}>
+              已选择 {selectedItems.length} 项，包含 {selectedBookCount} 本书。空系列只会删除系列本身。
+            </Text>
+          </View>
+          <View style={styles.manageActions}>
+            <PrimaryButton variant="secondary" onPress={exitManageMode}>
+              取消
+            </PrimaryButton>
+            <PrimaryButton variant="danger" onPress={confirmDeleteSelected} disabled={selectedItems.length === 0 || loading}>
+              删除{selectedItems.length ? `(${selectedItems.length})` : ""}
+            </PrimaryButton>
+          </View>
         </View>
-      </View>
+      ) : (
+        <View style={styles.toolbar}>
+          <TextInput
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="搜索书名、系列或作者"
+            placeholderTextColor={theme.muted}
+            style={[styles.searchInput, { backgroundColor: theme.panel, borderColor: theme.border, color: theme.text }]}
+            returnKeyType="search"
+            clearButtonMode="while-editing"
+          />
+          <CircleButton label="+" variant="primary" theme={theme} onPress={() => setAddMenuVisible(true)} />
+          <CircleButton label="⚙" variant="secondary" theme={theme} onPress={() => setSettingsMenuVisible(true)} />
+        </View>
+      )}
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
-
-      <View style={styles.searchRow}>
-        <TextInput
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          placeholder="搜索书名、系列或作者"
-          placeholderTextColor={theme.muted}
-          style={[styles.input, { backgroundColor: theme.panel, borderColor: theme.border, color: theme.text }]}
-          returnKeyType="search"
-          clearButtonMode="while-editing"
-        />
-        {hasSearch ? (
-          <PrimaryButton variant="secondary" onPress={() => setSearchQuery("")}>
-            清除
-          </PrimaryButton>
-        ) : null}
-      </View>
-
-      <View style={styles.createSeriesRow}>
-        <TextInput
-          value={seriesName}
-          onChangeText={setSeriesName}
-          placeholder="新建系列，例如：凡人修仙传"
-          placeholderTextColor={theme.muted}
-          style={[styles.input, { backgroundColor: theme.panel, borderColor: theme.border, color: theme.text }]}
-          returnKeyType="done"
-          onSubmitEditing={handleCreateSeries}
-        />
-        <PrimaryButton variant="secondary" onPress={handleCreateSeries} disabled={!seriesName.trim()}>
-          创建
-        </PrimaryButton>
-      </View>
 
       {loading ? <ActivityIndicator color={colors.accent} style={styles.loader} /> : null}
 
@@ -128,6 +222,7 @@ export function LibraryScreen({ navigation }: Props) {
         numColumns={3}
         data={visibleItems}
         keyExtractor={(item) => `${item.type}-${item.id}`}
+        extraData={`${managing}-${Array.from(selectedKeys).join(",")}`}
         columnWrapperStyle={styles.gridRow}
         contentContainerStyle={visibleItems.length === 0 ? styles.emptyList : styles.libraryGrid}
         ListEmptyComponent={
@@ -143,15 +238,135 @@ export function LibraryScreen({ navigation }: Props) {
             item={item}
             width={cardWidth}
             theme={theme}
+            managing={managing}
+            selected={selectedKeys.has(libraryItemKey(item))}
             onPress={() =>
-              item.type === "series"
-                ? navigation.navigate("Series", { seriesId: item.id })
-                : navigation.navigate("BookDetail", { bookId: item.id })
+              managing
+                ? toggleSelection(item)
+                : item.type === "series"
+                  ? navigation.navigate("Series", { seriesId: item.id })
+                  : navigation.navigate("BookDetail", { bookId: item.id })
             }
           />
         )}
       />
+
+      <ActionMenu title="添加" visible={addMenuVisible} theme={theme} onClose={() => setAddMenuVisible(false)}>
+        <MenuItem label="导入 EPUB" theme={theme} onPress={() => void handleImportBook()} />
+        <MenuItem label="新建系列" theme={theme} onPress={openCreateSeries} />
+      </ActionMenu>
+
+      <ActionMenu title="设置" visible={settingsMenuVisible} theme={theme} onClose={() => setSettingsMenuVisible(false)}>
+        <MenuItem label="阅读设置" theme={theme} onPress={openReaderSettings} />
+        <MenuItem label="管理书库" theme={theme} onPress={enterManageMode} disabled={libraryItems.length === 0} />
+      </ActionMenu>
+
+      <Modal visible={createSeriesVisible} animationType="fade" transparent onRequestClose={() => setCreateSeriesVisible(false)}>
+        <View style={styles.modalScrim}>
+          <View style={[styles.dialog, { backgroundColor: theme.background }]}>
+            <Text style={[styles.dialogTitle, { color: theme.text }]}>新建系列</Text>
+            <TextInput
+              value={seriesName}
+              onChangeText={setSeriesName}
+              placeholder="例如：凡人修仙传"
+              placeholderTextColor={theme.muted}
+              style={[styles.input, { backgroundColor: theme.panel, borderColor: theme.border, color: theme.text }]}
+              returnKeyType="done"
+              onSubmitEditing={handleCreateSeries}
+              autoFocus
+            />
+            <View style={styles.dialogActions}>
+              <PrimaryButton
+                variant="secondary"
+                onPress={() => {
+                  setSeriesName("");
+                  setCreateSeriesVisible(false);
+                }}
+              >
+                取消
+              </PrimaryButton>
+              <PrimaryButton variant="secondary" onPress={handleCreateSeries} disabled={!seriesName.trim()}>
+                创建
+              </PrimaryButton>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
+  );
+}
+
+function CircleButton({
+  label,
+  onPress,
+  theme,
+  variant
+}: {
+  label: string;
+  onPress: () => void;
+  theme: ReturnType<typeof getAppTheme>;
+  variant: "primary" | "secondary";
+}) {
+  const isPrimary = variant === "primary";
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.circleButton,
+        {
+          backgroundColor: isPrimary ? theme.accent : theme.accentSoft,
+          borderColor: isPrimary ? theme.accent : theme.border
+        },
+        pressed && styles.pressed
+      ]}
+    >
+      <Text style={[styles.circleButtonText, { color: isPrimary ? "#ffffff" : theme.accent }]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function ActionMenu({
+  title,
+  visible,
+  onClose,
+  theme,
+  children
+}: {
+  title: string;
+  visible: boolean;
+  onClose: () => void;
+  theme: ReturnType<typeof getAppTheme>;
+  children: ReactNode;
+}) {
+  return (
+    <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
+      <Pressable style={styles.menuScrim} onPress={onClose}>
+        <Pressable style={[styles.menuPanel, { backgroundColor: theme.background, borderColor: theme.border }]}>
+          <Text style={[styles.menuTitle, { color: theme.muted }]}>{title}</Text>
+          {children}
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+function MenuItem({
+  label,
+  onPress,
+  theme,
+  disabled = false
+}: {
+  label: string;
+  onPress: () => void;
+  theme: ReturnType<typeof getAppTheme>;
+  disabled?: boolean;
+}) {
+  return (
+    <Pressable disabled={disabled} onPress={onPress} style={({ pressed }) => [styles.menuItem, disabled && styles.disabled, pressed && styles.pressed]}>
+      <Text style={[styles.menuItemText, { color: theme.text }]}>{label}</Text>
+    </Pressable>
   );
 }
 
@@ -159,23 +374,38 @@ function LibraryBookRow({
   item,
   onPress,
   width,
-  theme
+  theme,
+  managing,
+  selected
 }: {
   item: LibraryItem;
   onPress: () => void;
   width: number;
   theme: ReturnType<typeof getAppTheme>;
+  managing: boolean;
+  selected: boolean;
 }) {
   const coverHeight = Math.round(width * COVER_ASPECT_RATIO);
 
   return (
     <Pressable style={[styles.bookRow, { width }]} onPress={onPress}>
-      <View style={[styles.cover, { width, height: coverHeight, backgroundColor: theme.accentSoft }]}>
+      <View
+        style={[
+          styles.cover,
+          { width, height: coverHeight, backgroundColor: theme.accentSoft },
+          selected && { borderColor: theme.accent, borderWidth: 2 }
+        ]}
+      >
         {item.coverPath ? (
           <Image source={{ uri: item.coverPath }} style={styles.coverImage} resizeMode="cover" />
         ) : (
           <Text style={styles.coverGlyph}>{item.title.slice(0, 1)}</Text>
         )}
+        {managing ? (
+          <View style={[styles.selectionBadge, selected && { backgroundColor: theme.accent, borderColor: theme.accent }]}>
+            <Text style={[styles.selectionText, selected && styles.selectionTextSelected]}>{selected ? "✓" : ""}</Text>
+          </View>
+        ) : null}
       </View>
       <Text style={[styles.bookTitle, { color: theme.text }]} numberOfLines={1}>
         {item.title}
@@ -193,7 +423,8 @@ function seriesToItem(series: SeriesSummary): LibraryItem {
     coverPath: series.coverPaths[0] ?? null,
     sortTitle: series.name,
     recentDate: series.latestOpenedAt ?? series.createdAt,
-    createdDate: series.createdAt
+    createdDate: series.createdAt,
+    bookCount: series.bookCount
   };
 }
 
@@ -227,6 +458,10 @@ function normalizeSearchText(value: string) {
   return value.trim().toLocaleLowerCase();
 }
 
+function libraryItemKey(item: Pick<LibraryItem, "type" | "id">) {
+  return `${item.type}:${item.id}`;
+}
+
 const styles = StyleSheet.create({
   root: {
     flex: 1,
@@ -234,39 +469,64 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     backgroundColor: colors.paper
   },
-  header: {
+  toolbar: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: spacing.md,
-    paddingTop: spacing.lg
-  },
-  headerActions: {
-    flexDirection: "row",
+    paddingTop: spacing.lg,
     gap: spacing.sm
   },
-  title: {
-    fontSize: 28,
+  searchInput: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: 22,
+    backgroundColor: "#ffffff",
+    borderColor: colors.border,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: spacing.lg,
+    color: colors.ink
+  },
+  circleButton: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 22,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: "#ffffff"
+  },
+  circleButtonText: {
+    fontSize: 18,
     fontWeight: "800",
     color: colors.ink
+  },
+  manageToolbar: {
+    paddingTop: spacing.lg,
+    gap: spacing.md
+  },
+  manageCopy: {
+    gap: spacing.xs
+  },
+  manageTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: colors.ink
+  },
+  manageActions: {
+    flexDirection: "row",
+    gap: spacing.sm
   },
   error: {
     color: colors.danger,
     fontSize: 14
   },
+  manageHint: {
+    color: colors.muted
+  },
   loader: {
     marginTop: spacing.sm
   },
-  createSeriesRow: {
-    flexDirection: "row",
-    gap: spacing.sm
-  },
-  searchRow: {
-    flexDirection: "row",
-    gap: spacing.sm
-  },
   input: {
-    flex: 1,
     minHeight: 44,
     borderRadius: 8,
     backgroundColor: "#ffffff",
@@ -274,6 +534,69 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: spacing.md,
     color: colors.ink
+  },
+  menuScrim: {
+    flex: 1,
+    alignItems: "flex-end",
+    justifyContent: "flex-start",
+    paddingTop: 72,
+    paddingHorizontal: spacing.lg,
+    backgroundColor: "rgba(0,0,0,0.18)"
+  },
+  menuPanel: {
+    width: 180,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.paper
+  },
+  menuTitle: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: "700"
+  },
+  menuItem: {
+    minHeight: 46,
+    justifyContent: "center",
+    paddingHorizontal: spacing.md
+  },
+  menuItemText: {
+    color: colors.ink,
+    fontSize: 16,
+    fontWeight: "700"
+  },
+  modalScrim: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: spacing.lg,
+    backgroundColor: "rgba(0,0,0,0.35)"
+  },
+  dialog: {
+    width: "100%",
+    maxWidth: 420,
+    gap: spacing.md,
+    borderRadius: 8,
+    padding: spacing.lg,
+    backgroundColor: colors.paper
+  },
+  dialogTitle: {
+    color: colors.ink,
+    fontSize: 20,
+    fontWeight: "800"
+  },
+  dialogActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: spacing.sm
+  },
+  disabled: {
+    opacity: 0.55
+  },
+  pressed: {
+    opacity: 0.75
   },
   libraryGrid: {
     gap: GRID_GAP,
@@ -308,7 +631,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accentSoft,
     justifyContent: "center",
     alignItems: "center",
-    overflow: "hidden"
+    overflow: "hidden",
+    borderColor: "transparent",
+    borderWidth: 0
   },
   coverGlyph: {
     color: colors.accent,
@@ -328,5 +653,27 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: colors.ink,
     textAlign: "center"
+  },
+  selectionBadge: {
+    position: "absolute",
+    top: spacing.sm,
+    right: spacing.sm,
+    width: 26,
+    height: 26,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 13,
+    backgroundColor: "rgba(255,255,255,0.86)",
+    borderWidth: 2,
+    borderColor: colors.border
+  },
+  selectionText: {
+    color: "#ffffff",
+    fontSize: 16,
+    lineHeight: 20,
+    fontWeight: "900"
+  },
+  selectionTextSelected: {
+    color: "#ffffff"
   }
 });

@@ -21,11 +21,14 @@ export function SeriesScreen({ navigation, route }: Props) {
   const preference = useLibraryStore((state) => state.preference);
   const listBooksInSeries = useLibraryStore((state) => state.listBooksInSeries);
   const deleteSeries = useLibraryStore((state) => state.deleteSeries);
+  const deleteBooks = useLibraryStore((state) => state.deleteBooks);
   const addBookToSeries = useLibraryStore((state) => state.addBookToSeries);
   const importBookToSeries = useLibraryStore((state) => state.importBookToSeries);
   const [books, setBooks] = useState<Book[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [addVisible, setAddVisible] = useState(false);
+  const [managing, setManaging] = useState(false);
+  const [selectedBookIds, setSelectedBookIds] = useState<Set<string>>(new Set());
   const isUnassigned = seriesId === UNASSIGNED_SERIES_ID;
   const theme = getAppTheme(preference);
 
@@ -34,6 +37,7 @@ export function SeriesScreen({ navigation, route }: Props) {
     () => allBooks.filter((book) => !books.some((seriesBook) => seriesBook.id === book.id)),
     [allBooks, books]
   );
+  const selectedBooks = useMemo(() => books.filter((book) => selectedBookIds.has(book.id)), [books, selectedBookIds]);
 
   const refreshSeriesBooks = useCallback(async () => {
     setBooks(await listBooksInSeries(seriesId));
@@ -45,6 +49,31 @@ export function SeriesScreen({ navigation, route }: Props) {
       setLoadError("加载系列图书失败，请返回书库后重试。");
     });
   }, [refreshSeriesBooks]);
+
+  useEffect(() => {
+    setSelectedBookIds((current) => {
+      const existingIds = new Set(books.map((book) => book.id));
+      const next = new Set([...current].filter((id) => existingIds.has(id)));
+      return next.size === current.size ? current : next;
+    });
+  }, [books]);
+
+  function exitManageMode() {
+    setManaging(false);
+    setSelectedBookIds(new Set());
+  }
+
+  function toggleBookSelection(bookId: string) {
+    setSelectedBookIds((current) => {
+      const next = new Set(current);
+      if (next.has(bookId)) {
+        next.delete(bookId);
+      } else {
+        next.add(bookId);
+      }
+      return next;
+    });
+  }
 
   function confirmDelete() {
     if (isUnassigned) {
@@ -61,6 +90,37 @@ export function SeriesScreen({ navigation, route }: Props) {
         }
       }
     ]);
+  }
+
+  function confirmDeleteSelectedBooks() {
+    if (selectedBooks.length === 0) {
+      return;
+    }
+
+    const emptySeriesNote = !isUnassigned && selectedBooks.length === books.length ? " 删除后该系列会保留为空系列。" : "";
+
+    Alert.alert(
+      "删除所选图书",
+      `将删除 ${selectedBooks.length} 本书。书籍文件、封面和阅读进度会从本机移除，删除后无法恢复。${emptySeriesNote}`,
+      [
+        { text: "取消", style: "cancel" },
+        {
+          text: "删除",
+          style: "destructive",
+          onPress: () => {
+            void (async () => {
+              try {
+                await deleteBooks(selectedBooks);
+                await refreshSeriesBooks();
+                exitManageMode();
+              } catch {
+                setLoadError("删除图书失败，部分内容可能没有删除成功，请刷新后重试。");
+              }
+            })();
+          }
+        }
+      ]
+    );
   }
 
   async function addBook(book: Book) {
@@ -94,38 +154,70 @@ export function SeriesScreen({ navigation, route }: Props) {
         <View style={styles.headerText}>
           <Text style={[styles.title, { color: theme.text }]}>{title}</Text>
           <Text style={[styles.subtitle, { color: theme.muted }]}>
-            {isUnassigned ? "这些书还没有放入任何系列" : `${books.length} 本图书`}
+            {managing ? `已选择 ${selectedBooks.length} 本` : isUnassigned ? "这些书还没有放入任何系列" : `${books.length} 本图书`}
           </Text>
         </View>
-        {!isUnassigned ? (
-          <View style={styles.headerActions}>
-            <PrimaryButton variant="secondary" onPress={() => setAddVisible(true)}>
-              添加图书
-            </PrimaryButton>
-            <PrimaryButton variant="danger" onPress={confirmDelete}>
-              删除系列
-            </PrimaryButton>
-          </View>
-        ) : null}
+        <View style={styles.headerActions}>
+          {managing ? (
+            <>
+              <PrimaryButton variant="secondary" onPress={exitManageMode}>
+                取消
+              </PrimaryButton>
+              <PrimaryButton variant="danger" onPress={confirmDeleteSelectedBooks} disabled={selectedBooks.length === 0 || loading}>
+                删除{selectedBooks.length ? `(${selectedBooks.length})` : ""}
+              </PrimaryButton>
+            </>
+          ) : (
+            <>
+              {!isUnassigned ? (
+                <PrimaryButton variant="secondary" onPress={() => setAddVisible(true)}>
+                  添加图书
+                </PrimaryButton>
+              ) : null}
+              <PrimaryButton variant="secondary" onPress={() => setManaging(true)} disabled={books.length === 0}>
+                管理
+              </PrimaryButton>
+              {!isUnassigned ? (
+                <PrimaryButton variant="danger" onPress={confirmDelete}>
+                  删除系列
+                </PrimaryButton>
+              ) : null}
+            </>
+          )}
+        </View>
       </View>
       <FlatList
         data={books}
         keyExtractor={(item) => item.id}
+        extraData={`${managing}-${Array.from(selectedBookIds).join(",")}`}
         ListEmptyComponent={
           <Text style={[styles.empty, { color: theme.muted }]}>{isUnassigned ? "没有未分系列的书。" : "这个系列还没有书。"}</Text>
         }
-        renderItem={({ item }) => (
-          <Pressable
-            style={[styles.row, { borderColor: theme.border }]}
-            onPress={() => navigation.navigate("BookDetail", { bookId: item.id })}
-          >
-            <BookCover book={item} size="sm" />
-            <View style={styles.meta}>
-              <Text style={[styles.bookTitle, { color: theme.text }]}>{item.title}</Text>
-              <Text style={[styles.author, { color: theme.muted }]}>{item.author ?? "未知作者"}</Text>
-            </View>
-          </Pressable>
-        )}
+        renderItem={({ item }) => {
+          const selected = selectedBookIds.has(item.id);
+          return (
+            <Pressable
+              style={[
+                styles.row,
+                { borderColor: theme.border },
+                managing && { backgroundColor: theme.panel },
+                selected && { backgroundColor: theme.accentSoft }
+              ]}
+              onPress={() => (managing ? toggleBookSelection(item.id) : navigation.navigate("BookDetail", { bookId: item.id }))}
+            >
+              <BookCover book={item} size="sm" />
+              <View style={styles.meta}>
+                <Text style={[styles.bookTitle, { color: theme.text }]}>{item.title}</Text>
+                <Text style={[styles.author, { color: theme.muted }]}>{item.author ?? "未知作者"}</Text>
+              </View>
+              {managing ? (
+                <View style={[styles.selectionBadge, selected && { backgroundColor: theme.accent, borderColor: theme.accent }]}>
+                  <Text style={[styles.selectionText, selected && styles.selectionTextSelected]}>{selected ? "✓" : ""}</Text>
+                </View>
+              ) : null}
+            </Pressable>
+          );
+        }}
       />
 
       <Modal visible={addVisible} animationType="slide" transparent onRequestClose={() => setAddVisible(false)}>
@@ -182,14 +274,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.paper
   },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    alignItems: "stretch",
     gap: spacing.md,
     marginBottom: spacing.lg
   },
   headerActions: {
     flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "flex-start",
     gap: spacing.sm
   },
   title: {
@@ -216,6 +308,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
+    paddingHorizontal: spacing.sm,
     paddingVertical: spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border
@@ -271,5 +364,24 @@ const styles = StyleSheet.create({
   addButtonText: {
     color: colors.accent,
     fontWeight: "800"
+  },
+  selectionBadge: {
+    width: 26,
+    height: 26,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 13,
+    backgroundColor: "rgba(255,255,255,0.86)",
+    borderWidth: 2,
+    borderColor: colors.border
+  },
+  selectionText: {
+    color: "#ffffff",
+    fontSize: 16,
+    lineHeight: 20,
+    fontWeight: "900"
+  },
+  selectionTextSelected: {
+    color: "#ffffff"
   }
 });
