@@ -57,20 +57,13 @@ npm start
 
 该命令会以 Expo Dev Client 模式启动开发服务。
 
-### 运行到 Android
+### 部署到 Android
 
 ```bash
 npm run android
 ```
 
-如果图标、应用名称、原生权限或其他原生资源没有在设备上更新，请先卸载旧版本再重新安装：
-
-```bash
-adb uninstall com.rinsay.nrepubreader
-npm run android
-```
-
-### 运行到 iOS
+### 部署到 iOS
 
 ```bash
 npm run ios
@@ -110,9 +103,9 @@ npm test
 
 ## 开发说明
 
-- 该应用采用本地优先设计。目前没有账号系统、云同步、在线书城、DRM 支持、划线、笔记和全文搜索。
+- 该应用采用本地优先设计。目前没有账号系统、云同步、在线书城、DRM 支持、划线、笔记和全文搜索等功能。
 - EPUB 渲染在 WebView 内完成。React Native 负责文件导入、本地存储、页面导航、阅读设置和数据持久化。
-- 导入的书籍会被复制到应用私有目录。卸载应用会删除本地书库和阅读进度。
+- 导入的书籍会被复制到应用私有目录。卸载应用会删除本地书库和阅读进度，但不会删除原书籍文件。
 - Android 项目使用自适应图标。`assets/icon.png` 是通用应用图标；`assets/adaptive-icon.png` 是带安全边距的 Android 前景图标。
 
 ## 测试
