@@ -1,6 +1,6 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, FlatList, Image, Modal, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -16,6 +16,7 @@ const GRID_COLUMNS = 3;
 const GRID_GAP = 16;
 const SCREEN_HORIZONTAL_PADDING = spacing.lg * 2;
 const COVER_ASPECT_RATIO = 1.43;
+const LONG_PRESS_RELEASE_SUPPRESS_MS = 800;
 
 type LibraryItem =
   | {
@@ -58,6 +59,7 @@ export function LibraryScreen({ navigation }: Props) {
   const [managing, setManaging] = useState(false);
   const [createSeriesVisible, setCreateSeriesVisible] = useState(false);
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+  const suppressPressUntilRef = useRef(0);
   const libraryItems = useMemo(
     () => sortLibraryItems([...seriesSummaries.map(seriesToItem), ...unassignedBooks.map(bookToItem)]),
     [seriesSummaries, unassignedBooks]
@@ -127,8 +129,24 @@ export function LibraryScreen({ navigation }: Props) {
   }
 
   function enterManageModeWithSelection(item: LibraryItem) {
+    suppressPressUntilRef.current = Date.now() + LONG_PRESS_RELEASE_SUPPRESS_MS;
     setSelectedKeys(new Set([libraryItemKey(item)]));
     setManaging(true);
+  }
+
+  function handleLibraryItemPress(item: LibraryItem) {
+    if (Date.now() < suppressPressUntilRef.current) {
+      return;
+    }
+    if (managing) {
+      toggleSelection(item);
+      return;
+    }
+    if (item.type === "series") {
+      navigation.navigate("Series", { seriesId: item.id, seriesName: item.title });
+      return;
+    }
+    navigation.navigate("BookDetail", { bookId: item.id });
   }
 
   function confirmDeleteSelected() {
@@ -247,13 +265,7 @@ export function LibraryScreen({ navigation }: Props) {
             theme={theme}
             managing={managing}
             selected={selectedKeys.has(libraryItemKey(item))}
-            onPress={() =>
-              managing
-                ? toggleSelection(item)
-                : item.type === "series"
-                  ? navigation.navigate("Series", { seriesId: item.id, seriesName: item.title })
-                  : navigation.navigate("BookDetail", { bookId: item.id })
-            }
+            onPress={() => handleLibraryItemPress(item)}
             onLongPress={!managing ? () => enterManageModeWithSelection(item) : undefined}
           />
         )}

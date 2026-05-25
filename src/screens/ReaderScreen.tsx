@@ -2,7 +2,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import * as FileSystem from "expo-file-system/legacy";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Animated, FlatList, Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 
 import { encodeReaderMessage, parseWebReaderMessage, preferenceToReaderPayload } from "@/reader/messages";
@@ -27,6 +27,7 @@ const PAGE_TAP_RIGHT_RATIO = 0.64;
 const BOOK_TRANSFER_CHUNK_SIZE = 128 * 1024;
 const BOOK_TRANSFER_WINDOW_SIZE = 12;
 const BOOK_TRANSFER_TIMEOUT_MS = 45000;
+const TOC_ROW_HEIGHT = 50;
 
 type ActiveBookTransfer = {
   bookId: string;
@@ -47,10 +48,14 @@ function formatBookProgress(percentage: number) {
 export function ReaderScreen({ navigation, route }: Props) {
   const { bookId } = route.params;
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const webRef = useRef<WebView>(null);
   const hasSentLoadRef = useRef(false);
   const activeTransferRef = useRef<ActiveBookTransfer | null>(null);
   const tocDrawerProgress = useRef(new Animated.Value(0)).current;
+  const tocListRef = useRef<FlatList<TocItem>>(null);
+  const pendingTocScrollItemIdRef = useRef<string | null>(null);
+  const pendingTocScrollIndexRef = useRef<number | null>(null);
   const preference = useLibraryStore((state) => state.preference);
   const getBook = useLibraryStore((state) => state.getBook);
   const getProgress = useLibraryStore((state) => state.getProgress);
@@ -246,12 +251,17 @@ export function ReaderScreen({ navigation, route }: Props) {
 
   function openToc() {
     if (currentChapterHref) {
+      pendingTocScrollItemIdRef.current = toc.find((item) => isCurrentChapter(item.href, currentChapterHref))?.id ?? null;
+      pendingTocScrollIndexRef.current = null;
       const ancestorIds = getAncestorTocIdsForHref(toc, currentChapterHref);
       setCollapsedTocIds((current) => {
         const next = new Set(current);
         ancestorIds.forEach((id) => next.delete(id));
         return next;
       });
+    } else {
+      pendingTocScrollItemIdRef.current = null;
+      pendingTocScrollIndexRef.current = null;
     }
     setTocVisible(true);
   }
@@ -274,6 +284,51 @@ export function ReaderScreen({ navigation, route }: Props) {
       }).start();
     }
   }, [tocDrawerProgress, tocVisible]);
+
+  useEffect(() => {
+    if (!tocVisible || !pendingTocScrollItemIdRef.current || visibleToc.length === 0) {
+      return;
+    }
+
+    const targetIndex = visibleToc.findIndex((item) => item.id === pendingTocScrollItemIdRef.current);
+    if (targetIndex < 0) {
+      return;
+    }
+    pendingTocScrollIndexRef.current = targetIndex;
+
+    const timeoutId = setTimeout(() => {
+      tocListRef.current?.scrollToOffset({
+        offset: Math.max(0, (targetIndex - 4) * TOC_ROW_HEIGHT),
+        animated: false
+      });
+      tocListRef.current?.scrollToIndex({
+        index: targetIndex,
+        animated: false,
+        viewPosition: 0.5
+      });
+    }, 120);
+
+    return () => clearTimeout(timeoutId);
+  }, [tocVisible, visibleToc]);
+
+  function finishPendingTocScroll() {
+    const targetIndex = pendingTocScrollIndexRef.current;
+    if (targetIndex === null) {
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      tocListRef.current?.scrollToIndex({
+        index: targetIndex,
+        animated: false,
+        viewPosition: 0.5
+      });
+      pendingTocScrollItemIdRef.current = null;
+      pendingTocScrollIndexRef.current = null;
+    }, 80);
+
+    return () => clearTimeout(timeoutId);
+  }
 
   function toggleTocItem(item: TocItem) {
     setCollapsedTocIds((current) => {
@@ -405,7 +460,12 @@ export function ReaderScreen({ navigation, route }: Props) {
           <Animated.View
             style={[
               styles.tocPanel,
-              { width: tocDrawerWidth, transform: [{ translateX: tocDrawerTranslateX }] },
+              {
+                width: tocDrawerWidth,
+                paddingTop: insets.top,
+                paddingBottom: insets.bottom,
+                transform: [{ translateX: tocDrawerTranslateX }]
+              },
               isDark && styles.darkTocPanel
             ]}
           >
@@ -428,8 +488,29 @@ export function ReaderScreen({ navigation, route }: Props) {
             </View>
 
             <FlatList
+              ref={tocListRef}
               data={visibleToc}
               keyExtractor={(item) => item.id}
+              getItemLayout={(_data, index) => ({
+                length: TOC_ROW_HEIGHT,
+                offset: TOC_ROW_HEIGHT * index,
+                index
+              })}
+              onContentSizeChange={finishPendingTocScroll}
+              onLayout={finishPendingTocScroll}
+              onScrollToIndexFailed={(info) => {
+                tocListRef.current?.scrollToOffset({
+                  offset: Math.max(0, info.index * TOC_ROW_HEIGHT),
+                  animated: false
+                });
+                setTimeout(() => {
+                  tocListRef.current?.scrollToIndex({
+                    index: info.index,
+                    animated: false,
+                    viewPosition: 0.5
+                  });
+                }, 80);
+              }}
               ListEmptyComponent={<Text style={[styles.emptyToc, isDark && styles.darkMutedText]}>这本书没有可用目录。</Text>}
               renderItem={({ item }) => {
                 const active = isCurrentChapter(item.href, currentChapterHref);
@@ -617,7 +698,7 @@ const styles = StyleSheet.create({
     color: colors.muted
   },
   tocRow: {
-    minHeight: 50,
+    height: TOC_ROW_HEIGHT,
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,

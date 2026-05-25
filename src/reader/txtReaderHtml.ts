@@ -30,8 +30,6 @@ export const TXT_READER_HTML = String.raw`
         height: 100%;
         box-sizing: border-box;
         padding: 20px 22px;
-        white-space: pre-wrap;
-        overflow-wrap: break-word;
       }
 
       #content {
@@ -46,6 +44,20 @@ export const TXT_READER_HTML = String.raw`
         pointer-events: none;
         height: auto;
         min-height: 0;
+      }
+
+      .chapter-title {
+        margin: 0 0 18px;
+        font-size: 1.18em;
+        line-height: 1.45;
+        font-weight: 800;
+        white-space: pre-wrap;
+        overflow-wrap: break-word;
+      }
+
+      .chapter-body {
+        white-space: pre-wrap;
+        overflow-wrap: break-word;
       }
 
       #loader, #error {
@@ -222,6 +234,23 @@ export const TXT_READER_HTML = String.raw`
         return state.text.slice(chapter.startOffset, chapter.endOffset);
       }
 
+      function currentChapterTitleEnd() {
+        const chapter = currentChapter();
+        const text = currentChapterText();
+        if (!chapter || !chapter.id.startsWith("txt-chapter-") || !text) {
+          return 0;
+        }
+
+        const newlineIndex = text.indexOf("\n");
+        const firstLineEnd = newlineIndex >= 0 ? newlineIndex : text.length;
+        const firstLine = text.slice(0, firstLineEnd);
+        if (firstLine.trim() !== chapter.title) {
+          return 0;
+        }
+
+        return newlineIndex >= 0 ? newlineIndex + 1 : text.length;
+      }
+
       function currentPosition() {
         const chapter = currentChapter();
         if (!chapter) {
@@ -314,7 +343,7 @@ export const TXT_READER_HTML = String.raw`
         const chapterText = currentChapterText();
         const start = state.pageStarts[state.currentPage] ?? 0;
         const end = ensurePageEnd(state.currentPage);
-        content.textContent = chapterText.slice(start, end) || " ";
+        renderChapterSlice(content, start, end);
       }
 
       function resetChapterPagination(position, preferredPage) {
@@ -345,10 +374,34 @@ export const TXT_READER_HTML = String.raw`
         measure.style.width = pageWidth + "px";
       }
 
-      function pageFits(text) {
+      function renderChapterSlice(container, start, end) {
+        const text = currentChapterText();
+        const titleEnd = currentChapterTitleEnd();
+        container.textContent = "";
+
+        if (start === 0 && titleEnd > 0) {
+          const title = document.createElement("h1");
+          title.className = "chapter-title";
+          title.textContent = text.slice(0, Math.max(0, titleEnd - 1)).trim() || currentChapter().title;
+          container.appendChild(title);
+
+          const body = document.createElement("div");
+          body.className = "chapter-body";
+          body.textContent = text.slice(titleEnd, end) || " ";
+          container.appendChild(body);
+          return;
+        }
+
+        const body = document.createElement("div");
+        body.className = "chapter-body";
+        body.textContent = text.slice(start, end) || " ";
+        container.appendChild(body);
+      }
+
+      function pageFits(start, end) {
         const viewer = document.getElementById("viewer");
         const measure = document.getElementById("measure");
-        measure.textContent = text || " ";
+        renderChapterSlice(measure, start, end);
         return measure.scrollHeight <= viewer.clientHeight + 1;
       }
 
@@ -361,13 +414,13 @@ export const TXT_READER_HTML = String.raw`
         let low = Math.min(text.length, start + MIN_PAGE_CHARS);
         let high = text.length;
 
-        if (!pageFits(text.slice(start, low))) {
+        if (!pageFits(start, low)) {
           return low;
         }
 
         while (low < high) {
           const mid = Math.min(high, Math.ceil((low + high + 1) / 2));
-          if (pageFits(text.slice(start, mid))) {
+          if (pageFits(start, mid)) {
             low = mid;
           } else {
             high = mid - 1;

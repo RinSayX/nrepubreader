@@ -36,6 +36,13 @@ describe("TXT reader HTML", () => {
     expect(TXT_READER_HTML).not.toContain("content.textContent = state.text");
   });
 
+  it("renders real TXT chapter headings with distinct title styling", () => {
+    expect(TXT_READER_HTML).toContain(".chapter-title");
+    expect(TXT_READER_HTML).toContain("font-weight: 800");
+    expect(TXT_READER_HTML).toContain("currentChapterTitleEnd");
+    expect(TXT_READER_HTML).toContain("renderChapterSlice");
+  });
+
   it("does not report progress before a TXT book id is loaded", () => {
     expect(TXT_READER_HTML).toContain("if (!state.bookId)");
     expect(TXT_READER_HTML).toContain("state.bookId && state.text");

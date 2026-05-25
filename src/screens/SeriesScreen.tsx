@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, FlatList, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -12,6 +12,8 @@ import { useLibraryStore } from "@/store/libraryStore";
 import type { Book, RootStackParamList } from "@/types";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Series">;
+
+const LONG_PRESS_RELEASE_SUPPRESS_MS = 800;
 
 export function SeriesScreen({ navigation, route }: Props) {
   const { seriesId } = route.params;
@@ -29,6 +31,7 @@ export function SeriesScreen({ navigation, route }: Props) {
   const [addVisible, setAddVisible] = useState(false);
   const [managing, setManaging] = useState(false);
   const [selectedBookIds, setSelectedBookIds] = useState<Set<string>>(new Set());
+  const suppressPressUntilRef = useRef(0);
   const isUnassigned = seriesId === UNASSIGNED_SERIES_ID;
   const theme = getAppTheme(preference);
 
@@ -80,8 +83,24 @@ export function SeriesScreen({ navigation, route }: Props) {
   }
 
   function enterManageModeWithBook(bookId: string) {
+    suppressPressUntilRef.current = Date.now() + LONG_PRESS_RELEASE_SUPPRESS_MS;
     setSelectedBookIds(new Set([bookId]));
     setManaging(true);
+  }
+
+  function handleBookPress(bookId: string) {
+    if (Date.now() < suppressPressUntilRef.current) {
+      return;
+    }
+    if (managing) {
+      toggleBookSelection(bookId);
+      return;
+    }
+    navigation.navigate("BookDetail", { bookId });
+  }
+
+  function selectAllBooks() {
+    setSelectedBookIds(new Set(books.map((book) => book.id)));
   }
 
   function confirmDeleteSelectedBooks() {
@@ -152,6 +171,9 @@ export function SeriesScreen({ navigation, route }: Props) {
         <View style={styles.headerActions}>
           {managing ? (
             <>
+              <PrimaryButton variant="secondary" onPress={selectAllBooks} disabled={books.length === 0 || selectedBooks.length === books.length}>
+                全选
+              </PrimaryButton>
               <PrimaryButton variant="secondary" onPress={exitManageMode}>
                 取消
               </PrimaryButton>
@@ -190,7 +212,7 @@ export function SeriesScreen({ navigation, route }: Props) {
                 managing && { backgroundColor: theme.panel },
                 selected && { backgroundColor: theme.accentSoft }
               ]}
-              onPress={() => (managing ? toggleBookSelection(item.id) : navigation.navigate("BookDetail", { bookId: item.id }))}
+              onPress={() => handleBookPress(item.id)}
               onLongPress={!managing ? () => enterManageModeWithBook(item.id) : undefined}
               delayLongPress={500}
             >
