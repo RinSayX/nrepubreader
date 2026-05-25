@@ -24,6 +24,21 @@ type Props = NativeStackScreenProps<RootStackParamList, "Reader">;
 const EDGE_GESTURE_GUARD = 44;
 const PAGE_TAP_LEFT_RATIO = 0.36;
 const PAGE_TAP_RIGHT_RATIO = 0.64;
+const BOOK_TRANSFER_CHUNK_SIZE = 128 * 1024;
+const BOOK_TRANSFER_WINDOW_SIZE = 12;
+const BOOK_TRANSFER_TIMEOUT_MS = 45000;
+
+type ActiveBookTransfer = {
+  bookId: string;
+  fileBase64: string;
+  offset: number;
+  index: number;
+  inFlightIndexes: Set<number>;
+  finished: boolean;
+  resolve: () => void;
+  reject: (error: Error) => void;
+  timeoutId: ReturnType<typeof setTimeout> | null;
+};
 
 function formatBookProgress(percentage: number) {
   return `${Math.round(Math.max(0, Math.min(1, percentage)) * 100)}%`;
@@ -34,6 +49,7 @@ export function ReaderScreen({ navigation, route }: Props) {
   const { width } = useWindowDimensions();
   const webRef = useRef<WebView>(null);
   const hasSentLoadRef = useRef(false);
+  const activeTransferRef = useRef<ActiveBookTransfer | null>(null);
   const tocDrawerProgress = useRef(new Animated.Value(0)).current;
   const preference = useLibraryStore((state) => state.preference);
   const getBook = useLibraryStore((state) => state.getBook);
@@ -66,13 +82,107 @@ export function ReaderScreen({ navigation, route }: Props) {
     webRef.current?.injectJavaScript(`window.readerBridge && window.readerBridge.receive(${encodeReaderMessage(message)}); true;`);
   }, []);
 
+  const clearTransferTimeout = useCallback((transfer: ActiveBookTransfer) => {
+    if (transfer.timeoutId) {
+      clearTimeout(transfer.timeoutId);
+      transfer.timeoutId = null;
+    }
+  }, []);
+
+  const armTransferTimeout = useCallback(
+    (transfer: ActiveBookTransfer) => {
+      clearTransferTimeout(transfer);
+      transfer.timeoutId = setTimeout(() => {
+        if (activeTransferRef.current === transfer) {
+          activeTransferRef.current = null;
+          transfer.reject(new Error("书籍传输超时，请重试。"));
+        }
+      }, BOOK_TRANSFER_TIMEOUT_MS);
+    },
+    [clearTransferTimeout]
+  );
+
+  const rejectTransfer = useCallback(
+    (transfer: ActiveBookTransfer, error: Error) => {
+      clearTransferTimeout(transfer);
+      if (activeTransferRef.current === transfer) {
+        activeTransferRef.current = null;
+      }
+      transfer.reject(error);
+    },
+    [clearTransferTimeout]
+  );
+
+  const finishTransferIfReady = useCallback(
+    (transfer: ActiveBookTransfer) => {
+      if (transfer.finished || transfer.offset < transfer.fileBase64.length || transfer.inFlightIndexes.size > 0) {
+        return;
+      }
+
+      transfer.finished = true;
+      clearTransferTimeout(transfer);
+      send({ type: "FINISH_BOOK_TRANSFER", payload: { bookId: transfer.bookId } });
+      if (activeTransferRef.current === transfer) {
+        activeTransferRef.current = null;
+      }
+      transfer.resolve();
+    },
+    [clearTransferTimeout, send]
+  );
+
+  const sendAvailableBookChunks = useCallback(() => {
+    const transfer = activeTransferRef.current;
+    if (!transfer) {
+      return;
+    }
+
+    while (transfer.offset < transfer.fileBase64.length && transfer.inFlightIndexes.size < BOOK_TRANSFER_WINDOW_SIZE) {
+      const chunk = transfer.fileBase64.slice(transfer.offset, transfer.offset + BOOK_TRANSFER_CHUNK_SIZE);
+      const index = transfer.index;
+      transfer.offset += BOOK_TRANSFER_CHUNK_SIZE;
+      transfer.index += 1;
+      transfer.inFlightIndexes.add(index);
+
+      send({
+        type: "BOOK_CHUNK",
+        payload: {
+          bookId: transfer.bookId,
+          chunk,
+          index
+        }
+      });
+    }
+
+    armTransferTimeout(transfer);
+    finishTransferIfReady(transfer);
+  }, [armTransferTimeout, finishTransferIfReady, send]);
+
   const sendBookToWebView = useCallback(
-    (nextBook: Book, fileBase64: string) => {
-      const chunkSize = 64 * 1024;
+    (nextBook: Book, fileBase64: string) =>
+      new Promise<void>((resolve, reject) => {
+        const previousTransfer = activeTransferRef.current;
+        if (previousTransfer) {
+          rejectTransfer(previousTransfer, new Error("新的书籍传输已开始。"));
+        }
+
+        const transfer: ActiveBookTransfer = {
+          bookId: nextBook.id,
+          fileBase64,
+          offset: 0,
+          index: 0,
+          inFlightIndexes: new Set(),
+          finished: false,
+          resolve,
+          reject,
+          timeoutId: null
+        };
+        activeTransferRef.current = transfer;
+
       send({
         type: "START_BOOK_TRANSFER",
         payload: {
           bookId: nextBook.id,
+          totalChunks: Math.ceil(fileBase64.length / BOOK_TRANSFER_CHUNK_SIZE),
           title: nextBook.title,
           initialCfi,
           initialPosition,
@@ -80,20 +190,10 @@ export function ReaderScreen({ navigation, route }: Props) {
         }
       });
 
-      for (let offset = 0, index = 0; offset < fileBase64.length; offset += chunkSize, index += 1) {
-        send({
-          type: "BOOK_CHUNK",
-          payload: {
-            bookId: nextBook.id,
-            chunk: fileBase64.slice(offset, offset + chunkSize),
-            index
-          }
-        });
-      }
-
-      send({ type: "FINISH_BOOK_TRANSFER", payload: { bookId: nextBook.id } });
-    },
-    [initialCfi, initialPosition, preference, send]
+        armTransferTimeout(transfer);
+        setTimeout(sendAvailableBookChunks, 0);
+      }),
+    [armTransferTimeout, initialCfi, initialPosition, preference, rejectTransfer, send, sendAvailableBookChunks]
   );
 
   useEffect(() => {
@@ -123,7 +223,7 @@ export function ReaderScreen({ navigation, route }: Props) {
             encoding: FileSystem.EncodingType.Base64
           });
           await markBookOpened(book.id);
-          sendBookToWebView(book, fileBase64);
+          await sendBookToWebView(book, fileBase64);
         } catch (error) {
           hasSentLoadRef.current = false;
           Alert.alert("打开失败", error instanceof Error ? error.message : "无法读取本地书籍文件。");
@@ -240,7 +340,19 @@ export function ReaderScreen({ navigation, route }: Props) {
               setCollapsedTocIds(new Set(getCollapsibleTocIds(nextToc)));
             }
 
+            if (message.type === "BOOK_CHUNK_RECEIVED") {
+              const transfer = activeTransferRef.current;
+              if (transfer && transfer.bookId === message.payload.bookId) {
+                transfer.inFlightIndexes.delete(message.payload.index);
+                sendAvailableBookChunks();
+              }
+            }
+
             if (message.type === "LOCATION_CHANGED") {
+              if (!message.payload.bookId) {
+                return;
+              }
+
               const percentage = Math.max(0, Math.min(1, message.payload.percentage));
               setCurrentChapterHref(message.payload.chapterHref);
               setProgressLabel(formatBookProgress(percentage));

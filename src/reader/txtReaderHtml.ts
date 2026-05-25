@@ -26,15 +26,26 @@ export const TXT_READER_HTML = String.raw`
         box-sizing: border-box;
       }
 
-      #content {
+      #content, #measure {
         height: 100%;
         box-sizing: border-box;
         padding: 20px 22px;
         white-space: pre-wrap;
         overflow-wrap: break-word;
-        column-gap: 0;
-        column-fill: auto;
-        will-change: transform;
+      }
+
+      #content {
+        overflow: hidden;
+      }
+
+      #measure {
+        position: fixed;
+        left: -10000px;
+        top: -10000px;
+        visibility: hidden;
+        pointer-events: none;
+        height: auto;
+        min-height: 0;
       }
 
       #loader, #error {
@@ -57,6 +68,7 @@ export const TXT_READER_HTML = String.raw`
   </head>
   <body>
     <div id="viewer"><div id="content"></div></div>
+    <div id="measure"></div>
     <div id="loader">正在打开书籍</div>
     <div id="error"></div>
     <script>
@@ -66,7 +78,10 @@ export const TXT_READER_HTML = String.raw`
         text: "",
         chapters: [],
         transfer: null,
+        currentChapterIndex: 0,
         currentPage: 0,
+        pageStarts: [0],
+        pageEnds: [],
         pageCount: 1,
         theme: null,
         font: null
@@ -76,6 +91,7 @@ export const TXT_READER_HTML = String.raw`
       const SWIPE_MIN_DISTANCE = 56;
       const SWIPE_MAX_VERTICAL_DISTANCE = 80;
       const VIRTUAL_CHAPTER_SIZE = 20000;
+      const MIN_PAGE_CHARS = 20;
 
       function post(message) {
         window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify(message));
@@ -194,33 +210,61 @@ export const TXT_READER_HTML = String.raw`
         }));
       }
 
-      function currentPosition() {
-        if (state.pageCount <= 1 || state.text.length <= 1) {
-          return 0;
-        }
-        return Math.round((state.currentPage / (state.pageCount - 1)) * Math.max(0, state.text.length - 1));
+      function currentChapter() {
+        return state.chapters[state.currentChapterIndex] || state.chapters[0] || null;
       }
 
-      function chapterForPosition(position) {
-        let current = state.chapters[0] || null;
-        for (const chapter of state.chapters) {
-          if (position >= chapter.startOffset) {
-            current = chapter;
+      function currentChapterText() {
+        const chapter = currentChapter();
+        if (!chapter) {
+          return "";
+        }
+        return state.text.slice(chapter.startOffset, chapter.endOffset);
+      }
+
+      function currentPosition() {
+        const chapter = currentChapter();
+        if (!chapter) {
+          return 0;
+        }
+
+        const chapterLength = Math.max(0, chapter.endOffset - chapter.startOffset);
+        const localStart = state.pageStarts[state.currentPage] ?? 0;
+        if (chapterLength <= 1) {
+          return chapter.startOffset;
+        }
+
+        return chapter.startOffset + clamp(localStart, 0, Math.max(0, chapterLength - 1));
+      }
+
+      function chapterIndexForPosition(position) {
+        let currentIndex = 0;
+        for (let index = 0; index < state.chapters.length; index += 1) {
+          if (position >= state.chapters[index].startOffset) {
+            currentIndex = index;
           } else {
             break;
           }
         }
-        return current;
+        return currentIndex;
+      }
+
+      function chapterForPosition(position) {
+        return state.chapters[chapterIndexForPosition(position)] || null;
       }
 
       function percentageForPage() {
-        if (state.pageCount <= 1) {
+        if (!state.text || state.text.length <= 1) {
           return 0;
         }
-        return clamp(state.currentPage / (state.pageCount - 1), 0, 1);
+        return clamp(currentPosition() / Math.max(1, state.text.length - 1), 0, 1);
       }
 
       function postLocation() {
+        if (!state.bookId) {
+          return;
+        }
+
         const position = currentPosition();
         const chapter = chapterForPosition(position);
         post({
@@ -253,44 +297,144 @@ export const TXT_READER_HTML = String.raw`
         content.style.fontSize = font.fontSize + "px";
         content.style.lineHeight = font.lineHeight;
 
-        repaginate(currentPosition());
+        const measure = document.getElementById("measure");
+        measure.style.background = theme.backgroundColor;
+        measure.style.color = theme.textColor;
+        measure.style.fontFamily = fontFamily;
+        measure.style.fontSize = font.fontSize + "px";
+        measure.style.lineHeight = font.lineHeight;
+
+        if (state.bookId && state.text) {
+          renderChapterAtPosition(currentPosition());
+        }
       }
 
-      function repaginate(position) {
+      function renderCurrentChapter() {
+        const content = document.getElementById("content");
+        const chapterText = currentChapterText();
+        const start = state.pageStarts[state.currentPage] ?? 0;
+        const end = ensurePageEnd(state.currentPage);
+        content.textContent = chapterText.slice(start, end) || " ";
+      }
+
+      function resetChapterPagination(position, preferredPage) {
+        const chapter = currentChapter();
+        const localPosition = chapter ? clamp(position - chapter.startOffset, 0, Math.max(0, chapter.endOffset - chapter.startOffset - 1)) : 0;
+        state.pageStarts = [0];
+        state.pageEnds = [];
+        state.currentPage = 0;
+
+        if (Number.isFinite(preferredPage)) {
+          while (state.currentPage < preferredPage && ensurePageEnd(state.currentPage) < currentChapterText().length) {
+            moveToNextPageWithinChapter();
+          }
+          return;
+        }
+
+        while (ensurePageEnd(state.currentPage) <= localPosition && ensurePageEnd(state.currentPage) < currentChapterText().length) {
+          moveToNextPageWithinChapter();
+        }
+      }
+
+      function syncMeasureWidth() {
         const viewer = document.getElementById("viewer");
         const content = document.getElementById("content");
+        const measure = document.getElementById("measure");
         const pageWidth = Math.max(1, viewer.clientWidth);
-
-        content.style.columnWidth = pageWidth + "px";
         content.style.width = pageWidth + "px";
-
-        requestAnimationFrame(() => {
-          state.pageCount = Math.max(1, Math.ceil(content.scrollWidth / pageWidth));
-          const targetPosition = Number.isFinite(position) ? position : currentPosition();
-          state.currentPage = pageForPosition(targetPosition);
-          renderPage();
-        });
+        measure.style.width = pageWidth + "px";
       }
 
-      function pageForPosition(position) {
-        if (state.text.length <= 1 || state.pageCount <= 1) {
-          return 0;
+      function pageFits(text) {
+        const viewer = document.getElementById("viewer");
+        const measure = document.getElementById("measure");
+        measure.textContent = text || " ";
+        return measure.scrollHeight <= viewer.clientHeight + 1;
+      }
+
+      function findPageEnd(start) {
+        const text = currentChapterText();
+        if (start >= text.length) {
+          return text.length;
         }
-        return clamp(Math.floor((position / Math.max(1, state.text.length - 1)) * (state.pageCount - 1)), 0, state.pageCount - 1);
+
+        let low = Math.min(text.length, start + MIN_PAGE_CHARS);
+        let high = text.length;
+
+        if (!pageFits(text.slice(start, low))) {
+          return low;
+        }
+
+        while (low < high) {
+          const mid = Math.min(high, Math.ceil((low + high + 1) / 2));
+          if (pageFits(text.slice(start, mid))) {
+            low = mid;
+          } else {
+            high = mid - 1;
+          }
+        }
+
+        return clamp(preferBreakEnd(text, start, low), start + 1, text.length);
+      }
+
+      function preferBreakEnd(text, start, end) {
+        const searchStart = Math.max(start + 1, end - 120);
+        const slice = text.slice(searchStart, end);
+        const newline = slice.lastIndexOf("\n");
+        if (newline >= 20) {
+          return searchStart + newline + 1;
+        }
+        return end;
+      }
+
+      function ensurePageEnd(pageIndex) {
+        if (typeof state.pageEnds[pageIndex] === "number") {
+          return state.pageEnds[pageIndex];
+        }
+
+        const start = state.pageStarts[pageIndex] ?? 0;
+        const end = findPageEnd(start);
+        state.pageEnds[pageIndex] = end;
+        state.pageCount = Math.max(state.pageCount, pageIndex + 1);
+        return end;
+      }
+
+      function moveToNextPageWithinChapter() {
+        const end = ensurePageEnd(state.currentPage);
+        const textLength = currentChapterText().length;
+        if (end >= textLength) {
+          return false;
+        }
+        state.currentPage += 1;
+        if (typeof state.pageStarts[state.currentPage] !== "number") {
+          state.pageStarts[state.currentPage] = end;
+        }
+        state.pageCount = Math.max(state.pageCount, state.currentPage + 1);
+        return true;
+      }
+
+      function renderChapterAtPosition(position, preferredPage) {
+        state.currentChapterIndex = chapterIndexForPosition(position);
+        syncMeasureWidth();
+        resetChapterPagination(position, preferredPage);
+        renderPage();
       }
 
       function renderPage() {
-        const viewer = document.getElementById("viewer");
-        const content = document.getElementById("content");
-        const pageWidth = Math.max(1, viewer.clientWidth);
-        state.currentPage = clamp(state.currentPage, 0, state.pageCount - 1);
-        content.style.transform = "translateX(" + (-state.currentPage * pageWidth) + "px)";
+        renderCurrentChapter();
         postLocation();
       }
 
       function nextPage() {
-        if (state.currentPage < state.pageCount - 1) {
-          state.currentPage += 1;
+        if (moveToNextPageWithinChapter()) {
+          renderPage();
+          return;
+        }
+
+        if (state.currentChapterIndex < state.chapters.length - 1) {
+          state.currentChapterIndex += 1;
+          syncMeasureWidth();
+          resetChapterPagination(state.chapters[state.currentChapterIndex].startOffset, 0);
           renderPage();
         }
       }
@@ -298,6 +442,14 @@ export const TXT_READER_HTML = String.raw`
       function prevPage() {
         if (state.currentPage > 0) {
           state.currentPage -= 1;
+          renderPage();
+          return;
+        }
+
+        if (state.currentChapterIndex > 0) {
+          state.currentChapterIndex -= 1;
+          syncMeasureWidth();
+          resetChapterPagination(state.chapters[state.currentChapterIndex].endOffset - 1, Number.MAX_SAFE_INTEGER);
           renderPage();
         }
       }
@@ -307,8 +459,7 @@ export const TXT_READER_HTML = String.raw`
         if (!match) {
           return;
         }
-        state.currentPage = pageForPosition(Number(match[1]));
-        renderPage();
+        renderChapterAtPosition(Number(match[1]), 0);
       }
 
       function installSwipeNavigation() {
@@ -362,12 +513,11 @@ export const TXT_READER_HTML = String.raw`
           state.text = normalizeText(decodeBytes(bytes));
           state.chapters = splitChapters(state.text);
 
-          const content = document.getElementById("content");
-          content.textContent = state.text || " ";
           applySettings(payload.theme, payload.font);
 
           requestAnimationFrame(() => {
-            repaginate(payload.initialPosition || 0);
+            setLoaderText("正在排版章节");
+            renderChapterAtPosition(payload.initialPosition || 0);
             document.getElementById("loader").style.display = "none";
             post({
               type: "BOOK_READY",
@@ -385,16 +535,24 @@ export const TXT_READER_HTML = String.raw`
       function receive(message) {
         switch (message.type) {
           case "START_BOOK_TRANSFER":
-            state.transfer = { payload: message.payload, chunks: [] };
-            setLoaderText("正在接收书籍");
+            state.transfer = { payload: message.payload, chunks: [], received: 0 };
+            setLoaderText("正在打开");
             break;
           case "BOOK_CHUNK":
             if (state.transfer && state.transfer.payload.bookId === message.payload.bookId) {
+              if (typeof state.transfer.chunks[message.payload.index] === "undefined") {
+                state.transfer.received += 1;
+              }
               state.transfer.chunks[message.payload.index] = message.payload.chunk;
+              if (state.transfer.payload.totalChunks) {
+                setLoaderText("正在打开 " + Math.round((state.transfer.received / state.transfer.payload.totalChunks) * 100) + "%");
+              }
+              post({ type: "BOOK_CHUNK_RECEIVED", payload: { bookId: message.payload.bookId, index: message.payload.index } });
             }
             break;
           case "FINISH_BOOK_TRANSFER":
             if (state.transfer && state.transfer.payload.bookId === message.payload.bookId) {
+              setLoaderText("正在解析书籍");
               const payload = {
                 ...state.transfer.payload,
                 fileBase64: state.transfer.chunks.join("")
@@ -418,7 +576,7 @@ export const TXT_READER_HTML = String.raw`
         }
       }
 
-      window.addEventListener("resize", () => repaginate(currentPosition()));
+      window.addEventListener("resize", () => renderChapterAtPosition(currentPosition()));
       installSwipeNavigation();
       window.readerBridge = { receive };
       window.addEventListener("message", (event) => receive(JSON.parse(event.data)));

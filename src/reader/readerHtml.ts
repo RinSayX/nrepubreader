@@ -315,12 +315,19 @@ export const READER_HTML = String.raw`
       function receive(message) {
         switch (message.type) {
           case "START_BOOK_TRANSFER":
-            state.transfer = { payload: message.payload, chunks: [] };
-            setLoaderText("正在接收书籍");
+            state.transfer = { payload: message.payload, chunks: [], received: 0 };
+            setLoaderText("正在打开");
             break;
           case "BOOK_CHUNK":
             if (state.transfer && state.transfer.payload.bookId === message.payload.bookId) {
+              if (typeof state.transfer.chunks[message.payload.index] === "undefined") {
+                state.transfer.received += 1;
+              }
               state.transfer.chunks[message.payload.index] = message.payload.chunk;
+              if (state.transfer.payload.totalChunks) {
+                setLoaderText("正在打开 " + Math.round((state.transfer.received / state.transfer.payload.totalChunks) * 100) + "%");
+              }
+              post({ type: "BOOK_CHUNK_RECEIVED", payload: { bookId: message.payload.bookId, index: message.payload.index } });
             }
             break;
           case "FINISH_BOOK_TRANSFER":

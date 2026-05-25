@@ -88,6 +88,7 @@ export type ReaderToWebMessage =
       type: "START_BOOK_TRANSFER";
       payload: {
         bookId: string;
+        totalChunks?: number;
         initialCfi?: string | null;
         initialPosition?: number | null;
         title?: string;
@@ -110,6 +111,7 @@ export type ReaderToWebMessage =
 
 export type WebToReaderMessage =
   | { type: "WEB_READY" }
+  | { type: "BOOK_CHUNK_RECEIVED"; payload: { bookId: string; index: number } }
   | { type: "BOOK_READY"; payload: { title: string; toc: TocItem[] } }
   | {
       type: "LOCATION_CHANGED";

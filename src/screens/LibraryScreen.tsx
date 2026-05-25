@@ -399,7 +399,9 @@ function LibraryBookRow({
         {item.coverPath ? (
           <Image source={{ uri: item.coverPath }} style={styles.coverImage} resizeMode="cover" />
         ) : (
-          <Text style={styles.coverGlyph}>{item.title.slice(0, 1)}</Text>
+          <Text style={styles.coverPlaceholderTitle} numberOfLines={5} adjustsFontSizeToFit minimumFontScale={0.76}>
+            {item.title}
+          </Text>
         )}
         {managing ? (
           <View style={[styles.selectionBadge, selected && { backgroundColor: theme.accent, borderColor: theme.accent }]}>
@@ -635,10 +637,13 @@ const styles = StyleSheet.create({
     borderColor: "transparent",
     borderWidth: 0
   },
-  coverGlyph: {
+  coverPlaceholderTitle: {
     color: colors.accent,
-    fontSize: 24,
-    fontWeight: "900"
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: "900",
+    textAlign: "center",
+    paddingHorizontal: spacing.sm
   },
   coverImage: {
     flex: 1,

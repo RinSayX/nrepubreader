@@ -5,6 +5,7 @@ describe("TXT reader HTML", () => {
     expect(TXT_READER_HTML).toContain("START_BOOK_TRANSFER");
     expect(TXT_READER_HTML).toContain("BOOK_CHUNK");
     expect(TXT_READER_HTML).toContain("FINISH_BOOK_TRANSFER");
+    expect(TXT_READER_HTML).toContain("BOOK_CHUNK_RECEIVED");
   });
 
   it("decodes common Chinese TXT encodings", () => {
@@ -18,10 +19,25 @@ describe("TXT reader HTML", () => {
     expect(TXT_READER_HTML).toContain("txt:");
   });
 
-  it("uses paginated columns and reports character positions", () => {
-    expect(TXT_READER_HTML).toContain("column-fill: auto");
-    expect(TXT_READER_HTML).toContain("columnWidth");
+  it("measures and renders one TXT page at a time", () => {
+    expect(TXT_READER_HTML).toContain('id="measure"');
+    expect(TXT_READER_HTML).toContain("findPageEnd");
+    expect(TXT_READER_HTML).toContain("pageFits");
+    expect(TXT_READER_HTML).toContain("ensurePageEnd");
+    expect(TXT_READER_HTML).not.toContain("columnWidth");
+    expect(TXT_READER_HTML).not.toContain("translate3d");
     expect(TXT_READER_HTML).toContain("position");
     expect(TXT_READER_HTML).toContain("percentageForPage");
+  });
+
+  it("renders only the active TXT chapter instead of the whole book", () => {
+    expect(TXT_READER_HTML).toContain("currentChapterText");
+    expect(TXT_READER_HTML).toContain("renderChapterAtPosition");
+    expect(TXT_READER_HTML).not.toContain("content.textContent = state.text");
+  });
+
+  it("does not report progress before a TXT book id is loaded", () => {
+    expect(TXT_READER_HTML).toContain("if (!state.bookId)");
+    expect(TXT_READER_HTML).toContain("state.bookId && state.text");
   });
 });

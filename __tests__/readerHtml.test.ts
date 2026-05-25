@@ -23,6 +23,7 @@ describe("reader HTML dependencies", () => {
     expect(READER_HTML).toContain("START_BOOK_TRANSFER");
     expect(READER_HTML).toContain("BOOK_CHUNK");
     expect(READER_HTML).toContain("FINISH_BOOK_TRANSFER");
+    expect(READER_HTML).toContain("BOOK_CHUNK_RECEIVED");
   });
 
   it("computes progress before and after full location generation", () => {
