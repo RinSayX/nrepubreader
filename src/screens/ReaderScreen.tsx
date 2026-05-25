@@ -7,6 +7,7 @@ import { WebView } from "react-native-webview";
 
 import { encodeReaderMessage, parseWebReaderMessage, preferenceToReaderPayload } from "@/reader/messages";
 import { READER_HTML } from "@/reader/readerHtml";
+import { TXT_READER_HTML } from "@/reader/txtReaderHtml";
 import {
   getAncestorTocIdsForHref,
   getCollapsibleTocIds,
@@ -41,6 +42,7 @@ export function ReaderScreen({ navigation, route }: Props) {
   const markBookOpened = useLibraryStore((state) => state.markBookOpened);
   const [book, setBook] = useState<Book | null>(null);
   const [initialCfi, setInitialCfi] = useState<string | null>(null);
+  const [initialPosition, setInitialPosition] = useState<number | null>(null);
   const [webReady, setWebReady] = useState(false);
   const [progressLabel, setProgressLabel] = useState(formatBookProgress(0));
   const [toc, setToc] = useState<TocItem[]>([]);
@@ -71,7 +73,9 @@ export function ReaderScreen({ navigation, route }: Props) {
         type: "START_BOOK_TRANSFER",
         payload: {
           bookId: nextBook.id,
+          title: nextBook.title,
           initialCfi,
+          initialPosition,
           ...preferenceToReaderPayload(preference)
         }
       });
@@ -89,16 +93,23 @@ export function ReaderScreen({ navigation, route }: Props) {
 
       send({ type: "FINISH_BOOK_TRANSFER", payload: { bookId: nextBook.id } });
     },
-    [initialCfi, preference, send]
+    [initialCfi, initialPosition, preference, send]
   );
 
   useEffect(() => {
     hasSentLoadRef.current = false;
+    setWebReady(false);
+    setToc([]);
+    setCollapsedTocIds(new Set());
+    setCurrentChapterHref(null);
     void Promise.all([getBook(bookId), getProgress(bookId)]).then(([nextBook, progress]) => {
       setBook(nextBook);
       setInitialCfi(progress?.cfi ?? null);
+      setInitialPosition(progress?.position ?? null);
       if (progress) {
         setProgressLabel(formatBookProgress(progress.percentage));
+      } else {
+        setProgressLabel(formatBookProgress(0));
       }
     });
   }, [bookId, getBook, getProgress]);
@@ -115,7 +126,7 @@ export function ReaderScreen({ navigation, route }: Props) {
           sendBookToWebView(book, fileBase64);
         } catch (error) {
           hasSentLoadRef.current = false;
-          Alert.alert("打开失败", error instanceof Error ? error.message : "无法读取本地 EPUB 文件。");
+          Alert.alert("打开失败", error instanceof Error ? error.message : "无法读取本地书籍文件。");
         }
       })();
     }
@@ -205,7 +216,8 @@ export function ReaderScreen({ navigation, route }: Props) {
         <WebView
           ref={webRef}
           originWhitelist={["*"]}
-          source={{ html: READER_HTML, baseUrl: "" }}
+          key={book.id}
+          source={{ html: book.format === "txt" ? TXT_READER_HTML : READER_HTML, baseUrl: "" }}
           javaScriptEnabled
           scrollEnabled={false}
           bounces={false}
@@ -236,6 +248,7 @@ export function ReaderScreen({ navigation, route }: Props) {
                 bookId: message.payload.bookId,
                 chapterHref: message.payload.chapterHref,
                 cfi: message.payload.cfi,
+                position: message.payload.position ?? null,
                 percentage
               });
             }

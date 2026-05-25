@@ -132,7 +132,7 @@ export function SeriesScreen({ navigation, route }: Props) {
         setLoadError(null);
       }
     } catch {
-      setLoadError("导入图书失败，请确认文件为 EPUB 后重试。");
+      setLoadError("导入图书失败，请确认文件为 EPUB 或 TXT 后重试。");
     }
   }
 
@@ -219,7 +219,7 @@ export function SeriesScreen({ navigation, route }: Props) {
             </View>
             <View style={styles.addActions}>
               <PrimaryButton onPress={importBook} disabled={loading}>
-                导入 EPUB
+                导入书籍
               </PrimaryButton>
             </View>
 

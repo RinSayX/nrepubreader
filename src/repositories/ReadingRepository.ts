@@ -17,16 +17,18 @@ export class ReadingRepository {
   async saveProgress(progress: Omit<ReadingProgress, "updatedAt">): Promise<ReadingProgress> {
     const updatedAt = nowIso();
     await this.db.runAsync(
-      `INSERT INTO reading_progress (bookId, chapterHref, cfi, percentage, updatedAt)
-       VALUES (?, ?, ?, ?, ?)
+      `INSERT INTO reading_progress (bookId, chapterHref, cfi, position, percentage, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?)
        ON CONFLICT(bookId) DO UPDATE SET
          chapterHref = excluded.chapterHref,
          cfi = excluded.cfi,
+         position = excluded.position,
          percentage = excluded.percentage,
          updatedAt = excluded.updatedAt;`,
       progress.bookId,
       progress.chapterHref,
       progress.cfi,
+      progress.position,
       progress.percentage,
       updatedAt
     );

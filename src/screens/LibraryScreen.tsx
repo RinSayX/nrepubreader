@@ -229,7 +229,7 @@ export function LibraryScreen({ navigation }: Props) {
           <View style={styles.emptyState}>
             <Text style={[styles.emptyTitle, { color: theme.text }]}>{hasSearch ? "没有找到匹配项" : "还没有书"}</Text>
             <Text style={[styles.emptyText, { color: theme.muted }]}>
-              {hasSearch ? "换一个关键词试试。" : "导入 EPUB 后，单本书会直接显示；也可以创建系列来收纳多册小说。"}
+              {hasSearch ? "换一个关键词试试。" : "导入 EPUB 或 TXT 后，单本书会直接显示；也可以创建系列来收纳多册小说。"}
             </Text>
           </View>
         }
@@ -252,7 +252,7 @@ export function LibraryScreen({ navigation }: Props) {
       />
 
       <ActionMenu title="添加" visible={addMenuVisible} theme={theme} onClose={() => setAddMenuVisible(false)}>
-        <MenuItem label="导入 EPUB" theme={theme} onPress={() => void handleImportBook()} />
+        <MenuItem label="导入书籍" theme={theme} onPress={() => void handleImportBook()} />
         <MenuItem label="新建系列" theme={theme} onPress={openCreateSeries} />
       </ActionMenu>
 
@@ -268,7 +268,7 @@ export function LibraryScreen({ navigation }: Props) {
             <TextInput
               value={seriesName}
               onChangeText={setSeriesName}
-              placeholder="例如：凡人修仙传"
+              placeholder="例如：三体"
               placeholderTextColor={theme.muted}
               style={[styles.input, { backgroundColor: theme.panel, borderColor: theme.border, color: theme.text }]}
               returnKeyType="done"

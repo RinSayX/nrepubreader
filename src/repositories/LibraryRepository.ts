@@ -34,8 +34,8 @@ export class LibraryRepository {
     const timestamp = nowIso();
     await this.db.runAsync(
       `INSERT INTO books
-        (id, title, author, coverPath, filePath, identifier, fileHash, createdAt, updatedAt, lastOpenedAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL);`,
+        (id, title, author, coverPath, filePath, identifier, fileHash, format, createdAt, updatedAt, lastOpenedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL);`,
       book.id,
       book.title,
       book.author,
@@ -43,6 +43,7 @@ export class LibraryRepository {
       book.filePath,
       book.identifier,
       book.fileHash,
+      book.format,
       timestamp,
       timestamp
     );

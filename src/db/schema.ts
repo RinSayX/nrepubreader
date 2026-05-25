@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS books (
   filePath TEXT NOT NULL,
   identifier TEXT,
   fileHash TEXT NOT NULL UNIQUE,
+  format TEXT NOT NULL DEFAULT 'epub',
   createdAt TEXT NOT NULL,
   updatedAt TEXT NOT NULL,
   lastOpenedAt TEXT
@@ -33,6 +34,7 @@ CREATE TABLE IF NOT EXISTS reading_progress (
   bookId TEXT PRIMARY KEY NOT NULL,
   chapterHref TEXT,
   cfi TEXT,
+  position INTEGER,
   percentage REAL NOT NULL DEFAULT 0,
   updatedAt TEXT NOT NULL,
   FOREIGN KEY (bookId) REFERENCES books(id) ON DELETE CASCADE

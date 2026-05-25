@@ -2,6 +2,8 @@ export type ThemeMode = "light" | "dark";
 
 export type SortMode = "recent" | "created" | "title";
 
+export type BookFormat = "epub" | "txt";
+
 export type Book = {
   id: string;
   title: string;
@@ -10,6 +12,7 @@ export type Book = {
   filePath: string;
   identifier: string | null;
   fileHash: string;
+  format: BookFormat;
   createdAt: string;
   updatedAt: string;
   lastOpenedAt: string | null;
@@ -39,6 +42,7 @@ export type ReadingProgress = {
   bookId: string;
   chapterHref: string | null;
   cfi: string | null;
+  position: number | null;
   percentage: number;
   updatedAt: string;
 };
@@ -85,6 +89,8 @@ export type ReaderToWebMessage =
       payload: {
         bookId: string;
         initialCfi?: string | null;
+        initialPosition?: number | null;
+        title?: string;
         theme: ReaderThemePayload;
         font: ReaderFontPayload;
       };
@@ -111,6 +117,7 @@ export type WebToReaderMessage =
         bookId: string;
         chapterHref: string | null;
         cfi: string | null;
+        position?: number | null;
         percentage: number;
       };
     }

@@ -19,7 +19,7 @@ export class BookImportService {
 
   async pickAndImportMany(): Promise<Book[]> {
     const result = await DocumentPicker.getDocumentAsync({
-      type: ["application/epub+zip", "application/octet-stream"],
+      type: ["application/epub+zip", "text/plain", "application/octet-stream"],
       copyToCacheDirectory: true,
       multiple: true
     });
@@ -36,10 +36,17 @@ export class BookImportService {
   }
 
   async importFromUri(uri: string, originalName: string): Promise<Book> {
-    if (!originalName.toLowerCase().endsWith(".epub")) {
-      throw new Error("请选择 .epub 文件。");
+    const lowerName = originalName.toLowerCase();
+    if (lowerName.endsWith(".txt")) {
+      return this.importTxtFromUri(uri, originalName);
     }
+    if (lowerName.endsWith(".epub")) {
+      return this.importEpubFromUri(uri);
+    }
+    throw new Error("请选择 .epub 或 .txt 文件。");
+  }
 
+  private async importEpubFromUri(uri: string): Promise<Book> {
     await ensureDirectory(BOOKS_DIR);
     await ensureDirectory(COVERS_DIR);
 
@@ -72,7 +79,34 @@ export class BookImportService {
       coverPath,
       filePath,
       identifier: metadata.identifier,
-      fileHash
+      fileHash,
+      format: "epub"
+    });
+  }
+
+  private async importTxtFromUri(uri: string, originalName: string): Promise<Book> {
+    await ensureDirectory(BOOKS_DIR);
+
+    const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+    const fileHash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, base64);
+    const existing = await this.libraryRepository.findBookByHash(fileHash);
+    if (existing) {
+      return existing;
+    }
+
+    const bookId = cryptoRandomId();
+    const filePath = `${BOOKS_DIR}${bookId}.txt`;
+    await FileSystem.copyAsync({ from: uri, to: filePath });
+
+    return this.libraryRepository.insertBook({
+      id: bookId,
+      title: titleFromFileName(originalName),
+      author: null,
+      coverPath: null,
+      filePath,
+      identifier: null,
+      fileHash,
+      format: "txt"
     });
   }
 }
@@ -92,4 +126,8 @@ function mimeToExtension(mimeType: string) {
     return "webp";
   }
   return "jpg";
+}
+
+function titleFromFileName(fileName: string) {
+  return fileName.replace(/\.[^.]+$/, "").trim() || "未命名 TXT";
 }
