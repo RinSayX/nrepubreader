@@ -17,7 +17,7 @@ export function SeriesScreen({ navigation, route }: Props) {
   const { seriesId } = route.params;
   const series = useLibraryStore((state) => state.series.find((item) => item.id === seriesId));
   const seriesSummary = useLibraryStore((state) => state.seriesSummaries.find((item) => item.id === seriesId));
-  const allBooks = useLibraryStore((state) => state.books);
+  const unassignedBooks = useLibraryStore((state) => state.unassignedBooks);
   const loading = useLibraryStore((state) => state.loading);
   const preference = useLibraryStore((state) => state.preference);
   const listBooksInSeries = useLibraryStore((state) => state.listBooksInSeries);
@@ -36,10 +36,7 @@ export function SeriesScreen({ navigation, route }: Props) {
     () => (isUnassigned ? UNASSIGNED_SERIES_NAME : (series?.name ?? seriesSummary?.name ?? route.params.seriesName ?? "系列详情")),
     [isUnassigned, route.params.seriesName, series?.name, seriesSummary?.name]
   );
-  const addableBooks = useMemo(
-    () => allBooks.filter((book) => !books.some((seriesBook) => seriesBook.id === book.id)),
-    [allBooks, books]
-  );
+  const addableBooks = useMemo(() => unassignedBooks, [unassignedBooks]);
   const selectedBooks = useMemo(() => books.filter((book) => selectedBookIds.has(book.id)), [books, selectedBookIds]);
 
   const refreshSeriesBooks = useCallback(async () => {
@@ -80,6 +77,11 @@ export function SeriesScreen({ navigation, route }: Props) {
       }
       return next;
     });
+  }
+
+  function enterManageModeWithBook(bookId: string) {
+    setSelectedBookIds(new Set([bookId]));
+    setManaging(true);
   }
 
   function confirmDeleteSelectedBooks() {
@@ -189,6 +191,8 @@ export function SeriesScreen({ navigation, route }: Props) {
                 selected && { backgroundColor: theme.accentSoft }
               ]}
               onPress={() => (managing ? toggleBookSelection(item.id) : navigation.navigate("BookDetail", { bookId: item.id }))}
+              onLongPress={!managing ? () => enterManageModeWithBook(item.id) : undefined}
+              delayLongPress={500}
             >
               <BookCover book={item} size="sm" />
               <View style={styles.meta}>

@@ -126,6 +126,11 @@ export function LibraryScreen({ navigation }: Props) {
     });
   }
 
+  function enterManageModeWithSelection(item: LibraryItem) {
+    setSelectedKeys(new Set([libraryItemKey(item)]));
+    setManaging(true);
+  }
+
   function confirmDeleteSelected() {
     if (selectedItems.length === 0) {
       return;
@@ -183,9 +188,11 @@ export function LibraryScreen({ navigation }: Props) {
       {managing ? (
         <View style={styles.manageToolbar}>
           <View style={styles.manageCopy}>
-            <Text style={[styles.manageTitle, { color: theme.text }]}>管理书库</Text>
-            <Text style={[styles.manageHint, { color: theme.muted }]}>
-              已选择 {selectedItems.length} 项，包含 {selectedBookCount} 本书。空系列只会删除系列本身。
+            <Text style={[styles.manageTitle, { color: theme.text }]} numberOfLines={1}>
+              已选择 {selectedItems.length} 项
+            </Text>
+            <Text style={[styles.manageHint, { color: theme.muted }]} numberOfLines={1}>
+              包含 {selectedBookCount} 本书
             </Text>
           </View>
           <View style={styles.manageActions}>
@@ -247,6 +254,7 @@ export function LibraryScreen({ navigation }: Props) {
                   ? navigation.navigate("Series", { seriesId: item.id, seriesName: item.title })
                   : navigation.navigate("BookDetail", { bookId: item.id })
             }
+            onLongPress={!managing ? () => enterManageModeWithSelection(item) : undefined}
           />
         )}
       />
@@ -373,6 +381,7 @@ function MenuItem({
 function LibraryBookRow({
   item,
   onPress,
+  onLongPress,
   width,
   theme,
   managing,
@@ -380,6 +389,7 @@ function LibraryBookRow({
 }: {
   item: LibraryItem;
   onPress: () => void;
+  onLongPress?: () => void;
   width: number;
   theme: ReturnType<typeof getAppTheme>;
   managing: boolean;
@@ -388,7 +398,7 @@ function LibraryBookRow({
   const coverHeight = Math.round(width * COVER_ASPECT_RATIO);
 
   return (
-    <Pressable style={[styles.bookRow, { width }]} onPress={onPress}>
+    <Pressable style={[styles.bookRow, { width }]} onPress={onPress} onLongPress={onLongPress} delayLongPress={500}>
       <View
         style={[
           styles.cover,
@@ -503,19 +513,24 @@ const styles = StyleSheet.create({
     color: colors.ink
   },
   manageToolbar: {
+    flexDirection: "row",
+    alignItems: "center",
     paddingTop: spacing.lg,
-    gap: spacing.md
+    gap: spacing.sm
   },
   manageCopy: {
+    flex: 1,
     gap: spacing.xs
   },
   manageTitle: {
-    fontSize: 22,
+    fontSize: 17,
+    lineHeight: 21,
     fontWeight: "800",
     color: colors.ink
   },
   manageActions: {
     flexDirection: "row",
+    flexShrink: 0,
     gap: spacing.sm
   },
   error: {
@@ -523,7 +538,9 @@ const styles = StyleSheet.create({
     fontSize: 14
   },
   manageHint: {
-    color: colors.muted
+    color: colors.muted,
+    fontSize: 12,
+    lineHeight: 15
   },
   loader: {
     marginTop: spacing.sm
