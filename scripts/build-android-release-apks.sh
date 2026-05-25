@@ -4,10 +4,11 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VERSION="$(node -p "require('${ROOT_DIR}/package.json').version")"
 OUTPUT_DIR="${ROOT_DIR}/dist"
-ABIS=("armeabi-v7a" "arm64-v8a" "x86" "x86_64")
+ABIS=("armeabi-v7a" "arm64-v8a")
 
 mkdir -p "${OUTPUT_DIR}"
 rm -f "${OUTPUT_DIR}/ReadEPUB-v${VERSION}-android.apk"
+rm -f "${OUTPUT_DIR}/ReadEPUB-v${VERSION}-android-"*.apk
 
 for ABI in "${ABIS[@]}"; do
   echo "Building ReadEPUB ${VERSION} for ${ABI}..."
