@@ -68,6 +68,7 @@ export type RootStackParamList = {
   BookDetail: { bookId: string };
   Series: { seriesId: string; seriesName?: string };
   Settings: undefined;
+  About: undefined;
   Reader: { bookId: string };
 };
 

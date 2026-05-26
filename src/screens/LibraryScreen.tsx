@@ -110,6 +110,11 @@ export function LibraryScreen({ navigation }: Props) {
     navigation.navigate("Settings");
   }
 
+  function openAbout() {
+    setSettingsMenuVisible(false);
+    navigation.navigate("About");
+  }
+
   function enterManageMode() {
     setSettingsMenuVisible(false);
     setManaging(true);
@@ -279,6 +284,7 @@ export function LibraryScreen({ navigation }: Props) {
       <ActionMenu title="设置" visible={settingsMenuVisible} theme={theme} onClose={() => setSettingsMenuVisible(false)}>
         <MenuItem label="阅读设置" theme={theme} onPress={openReaderSettings} />
         <MenuItem label="管理书库" theme={theme} onPress={enterManageMode} disabled={libraryItems.length === 0} />
+        <MenuItem label="关于" theme={theme} onPress={openAbout} />
       </ActionMenu>
 
       <Modal visible={createSeriesVisible} animationType="fade" transparent onRequestClose={() => setCreateSeriesVisible(false)}>

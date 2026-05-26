@@ -7,6 +7,7 @@ import { useEffect } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
+import { AboutScreen } from "@/screens/AboutScreen";
 import { BookDetailScreen } from "@/screens/BookDetailScreen";
 import { LibraryScreen } from "@/screens/LibraryScreen";
 import { ReaderScreen } from "@/screens/ReaderScreen";
@@ -61,6 +62,7 @@ export default function App() {
           <Stack.Screen name="BookDetail" component={BookDetailScreen} options={{ title: "书籍详情" }} />
           <Stack.Screen name="Series" component={SeriesScreen} options={({ route }) => ({ title: route.params.seriesName ?? "系列详情" })} />
           <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: "阅读设置" }} />
+          <Stack.Screen name="About" component={AboutScreen} options={{ title: "关于" }} />
           <Stack.Screen name="Reader" component={ReaderScreen} options={{ title: "", headerShown: false }} />
         </Stack.Navigator>
       </NavigationContainer>
