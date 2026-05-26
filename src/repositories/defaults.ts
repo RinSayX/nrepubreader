@@ -2,6 +2,7 @@ import type { ReaderPreference } from "@/types";
 
 export const DEFAULT_READER_PREFERENCE: ReaderPreference = {
   themeMode: "light",
+  language: "zh-CN",
   fontFamily: "System",
   fontSize: 18,
   lineHeight: 1.65,

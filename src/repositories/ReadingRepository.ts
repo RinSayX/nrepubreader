@@ -38,7 +38,7 @@ export class ReadingRepository {
 
   async getPreference(): Promise<ReaderPreference> {
     const row = await this.db.getFirstAsync<ReaderPreference>(
-      "SELECT themeMode, fontFamily, fontSize, lineHeight, backgroundColor, textColor FROM reader_preferences WHERE id = ?;",
+      "SELECT themeMode, language, fontFamily, fontSize, lineHeight, backgroundColor, textColor FROM reader_preferences WHERE id = ?;",
       READER_PREFERENCE_ID
     );
     return row ?? DEFAULT_READER_PREFERENCE;
@@ -47,10 +47,11 @@ export class ReadingRepository {
   async savePreference(preference: ReaderPreference): Promise<ReaderPreference> {
     await this.db.runAsync(
       `INSERT INTO reader_preferences
-        (id, themeMode, fontFamily, fontSize, lineHeight, backgroundColor, textColor, updatedAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        (id, themeMode, language, fontFamily, fontSize, lineHeight, backgroundColor, textColor, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET
          themeMode = excluded.themeMode,
+         language = excluded.language,
          fontFamily = excluded.fontFamily,
          fontSize = excluded.fontSize,
          lineHeight = excluded.lineHeight,
@@ -59,6 +60,7 @@ export class ReadingRepository {
          updatedAt = excluded.updatedAt;`,
       READER_PREFERENCE_ID,
       preference.themeMode,
+      preference.language,
       preference.fontFamily,
       preference.fontSize,
       preference.lineHeight,

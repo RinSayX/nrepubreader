@@ -5,6 +5,7 @@ import type { Book, Series, SeriesSummary, SortMode } from "@/types";
 import { nowIso } from "@/repositories/defaults";
 
 type BookInsert = Omit<Book, "createdAt" | "updatedAt" | "lastOpenedAt">;
+type BookMetadataPatch = Pick<Book, "title" | "author" | "coverPath" | "identifier">;
 
 export class LibraryRepository {
   constructor(private readonly db: SQLiteDatabase) {}
@@ -31,24 +32,44 @@ export class LibraryRepository {
   }
 
   async insertBook(book: BookInsert): Promise<Book> {
-    const timestamp = nowIso();
-    await this.db.runAsync(
-      `INSERT INTO books
-        (id, title, author, coverPath, filePath, identifier, fileHash, format, createdAt, updatedAt, lastOpenedAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL);`,
-      book.id,
-      book.title,
-      book.author,
-      book.coverPath,
-      book.filePath,
-      book.identifier,
-      book.fileHash,
-      book.format,
-      timestamp,
-      timestamp
-    );
+    const [inserted] = await this.insertBooks([book]);
+    return inserted;
+  }
 
-    return { ...book, createdAt: timestamp, updatedAt: timestamp, lastOpenedAt: null };
+  async insertBooks(books: BookInsert[]): Promise<Book[]> {
+    if (books.length === 0) {
+      return [];
+    }
+
+    const timestamp = nowIso();
+    const inserted: Book[] = [];
+
+    await this.db.withExclusiveTransactionAsync(async (txn) => {
+      for (const book of books) {
+        await txn.runAsync(
+          `INSERT OR IGNORE INTO books
+            (id, title, author, coverPath, filePath, identifier, fileHash, format, createdAt, updatedAt, lastOpenedAt)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL);`,
+          book.id,
+          book.title,
+          book.author,
+          book.coverPath,
+          book.filePath,
+          book.identifier,
+          book.fileHash,
+          book.format,
+          timestamp,
+          timestamp
+        );
+
+        const row = await txn.getFirstAsync<Book>("SELECT * FROM books WHERE fileHash = ?;", book.fileHash);
+        if (row) {
+          inserted.push(row);
+        }
+      }
+    });
+
+    return inserted;
   }
 
   async deleteBook(book: Book): Promise<void> {
@@ -58,6 +79,18 @@ export class LibraryRepository {
   async markOpened(bookId: string): Promise<void> {
     const timestamp = nowIso();
     await this.db.runAsync("UPDATE books SET lastOpenedAt = ?, updatedAt = ? WHERE id = ?;", timestamp, timestamp, bookId);
+  }
+
+  async updateBookMetadata(bookId: string, patch: BookMetadataPatch): Promise<void> {
+    await this.db.runAsync(
+      "UPDATE books SET title = ?, author = ?, coverPath = ?, identifier = ?, updatedAt = ? WHERE id = ?;",
+      patch.title,
+      patch.author,
+      patch.coverPath,
+      patch.identifier,
+      nowIso(),
+      bookId
+    );
   }
 
   async listSeries(): Promise<Series[]> {
@@ -183,20 +216,36 @@ export class LibraryRepository {
   }
 
   async addBookToSeries(bookId: string, seriesId: string): Promise<void> {
-    await this.db.runAsync("DELETE FROM book_series WHERE bookId = ?;", bookId);
+    await this.addBooksToSeries([bookId], seriesId);
+  }
 
-    const maxRow = await this.db.getFirstAsync<{ maxOrder: number | null }>(
-      "SELECT MAX(orderIndex) AS maxOrder FROM book_series WHERE seriesId = ?;",
-      seriesId
-    );
-    const orderIndex = (maxRow?.maxOrder ?? -1) + 1;
+  async addBooksToSeries(bookIds: string[], seriesId: string): Promise<void> {
+    const uniqueBookIds = [...new Set(bookIds)];
+    if (uniqueBookIds.length === 0) {
+      return;
+    }
 
-    await this.db.runAsync(
-      "INSERT OR IGNORE INTO book_series (bookId, seriesId, orderIndex) VALUES (?, ?, ?);",
-      bookId,
-      seriesId,
-      orderIndex
-    );
+    await this.db.withExclusiveTransactionAsync(async (txn) => {
+      for (const bookId of uniqueBookIds) {
+        await txn.runAsync("DELETE FROM book_series WHERE bookId = ?;", bookId);
+      }
+
+      const maxRow = await txn.getFirstAsync<{ maxOrder: number | null }>(
+        "SELECT MAX(orderIndex) AS maxOrder FROM book_series WHERE seriesId = ?;",
+        seriesId
+      );
+      let orderIndex = (maxRow?.maxOrder ?? -1) + 1;
+
+      for (const bookId of uniqueBookIds) {
+        await txn.runAsync(
+          "INSERT OR IGNORE INTO book_series (bookId, seriesId, orderIndex) VALUES (?, ?, ?);",
+          bookId,
+          seriesId,
+          orderIndex
+        );
+        orderIndex += 1;
+      }
+    });
   }
 
   async removeBookFromSeries(bookId: string, seriesId: string): Promise<void> {

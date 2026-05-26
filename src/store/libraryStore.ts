@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
 import { getDatabase } from "@/db/database";
+import { getTranslations } from "@/i18n";
 import { LibraryRepository } from "@/repositories/LibraryRepository";
 import { ReadingRepository } from "@/repositories/ReadingRepository";
 import { BookImportService } from "@/services/BookImportService";
@@ -50,6 +51,7 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
   seriesSummaries: [],
   preference: {
     themeMode: "light",
+    language: "zh-CN",
     fontFamily: "System",
     fontSize: 18,
     lineHeight: 1.65,
@@ -69,7 +71,7 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
       set({ preference, ready: true });
       await get().refresh();
     } catch (error) {
-      set({ error: errorMessage(error) });
+      set({ error: errorMessage(error, get().preference.language) });
     } finally {
       set({ loading: false });
     }
@@ -97,13 +99,15 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
     try {
       const db = await getDatabase();
       const repo = new LibraryRepository(db);
-      const imported = await new BookImportService(repo).pickAndImportMany();
+      const imported = await new BookImportService(repo, get().preference.language, () => {
+        void get().refresh();
+      }).pickAndImportMany();
       if (imported.length > 0) {
         await get().refresh();
       }
       return imported;
     } catch (error) {
-      set({ error: errorMessage(error) });
+      set({ error: errorMessage(error, get().preference.language) });
       return [];
     } finally {
       set({ loading: false });
@@ -115,16 +119,16 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
     try {
       const db = await getDatabase();
       const repo = new LibraryRepository(db);
-      const imported = await new BookImportService(repo).pickAndImportMany();
+      const imported = await new BookImportService(repo, get().preference.language, () => {
+        void get().refresh();
+      }).pickAndImportMany();
       if (imported.length > 0) {
-        for (const book of imported) {
-          await repo.addBookToSeries(book.id, seriesId);
-        }
+        await repo.addBooksToSeries(imported.map((book) => book.id), seriesId);
         await get().refresh();
       }
       return imported;
     } catch (error) {
-      set({ error: errorMessage(error) });
+      set({ error: errorMessage(error, get().preference.language) });
       throw error;
     } finally {
       set({ loading: false });
@@ -155,7 +159,7 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
       await Promise.all(uniqueBooks.map(deleteBookFiles));
       await get().refresh();
     } catch (error) {
-      set({ error: errorMessage(error) });
+      set({ error: errorMessage(error, get().preference.language) });
       throw error;
     } finally {
       set({ loading: false });
@@ -176,7 +180,7 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
       await get().refresh();
       return { deletedBooks: books.length };
     } catch (error) {
-      set({ error: errorMessage(error) });
+      set({ error: errorMessage(error, get().preference.language) });
       throw error;
     } finally {
       set({ loading: false });
@@ -252,8 +256,8 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
   }
 }));
 
-function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "操作失败，请稍后重试。";
+function errorMessage(error: unknown, language: ReaderPreference["language"]) {
+  return error instanceof Error ? error.message : getTranslations(language).common.operationFailed;
 }
 
 function uniqueBooksById(books: Book[]) {

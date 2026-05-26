@@ -14,14 +14,34 @@ if (!fs.existsSync(buildGradlePath)) {
 
 let source = fs.readFileSync(buildGradlePath, "utf8");
 
-const signingVariables = `def readEPUBReleaseStoreFile = System.getenv("READEPUB_RELEASE_STORE_FILE")
+const signingVariables = `def readEPUBKeystoreProperties = new Properties()
+def readEPUBKeystorePropertiesFile = rootProject.file("keystore.properties")
+if (readEPUBKeystorePropertiesFile.exists()) {
+    readEPUBKeystoreProperties.load(new FileInputStream(readEPUBKeystorePropertiesFile))
+}
+
+def readEPUBReleaseStoreFile = System.getenv("READEPUB_RELEASE_STORE_FILE") ?: readEPUBKeystoreProperties["READEPUB_RELEASE_STORE_FILE"]
+def readEPUBReleaseStorePassword = System.getenv("READEPUB_RELEASE_STORE_PASSWORD") ?: readEPUBKeystoreProperties["READEPUB_RELEASE_STORE_PASSWORD"]
+def readEPUBReleaseKeyAlias = System.getenv("READEPUB_RELEASE_KEY_ALIAS") ?: readEPUBKeystoreProperties["READEPUB_RELEASE_KEY_ALIAS"]
+def readEPUBReleaseKeyPassword = System.getenv("READEPUB_RELEASE_KEY_PASSWORD") ?: readEPUBKeystoreProperties["READEPUB_RELEASE_KEY_PASSWORD"]
+def hasReadEPUBReleaseSigning = readEPUBReleaseStoreFile &&
+    readEPUBReleaseStorePassword &&
+    readEPUBReleaseKeyAlias &&
+    readEPUBReleaseKeyPassword &&
+    file(readEPUBReleaseStoreFile).exists()
+
+`;
+
+const legacySigningVariables = `def readEPUBReleaseStoreFile = System.getenv("READEPUB_RELEASE_STORE_FILE")
 def readEPUBReleaseStorePassword = System.getenv("READEPUB_RELEASE_STORE_PASSWORD")
 def readEPUBReleaseKeyAlias = System.getenv("READEPUB_RELEASE_KEY_ALIAS")
 def readEPUBReleaseKeyPassword = System.getenv("READEPUB_RELEASE_KEY_PASSWORD")
 
 `;
 
-if (!source.includes("readEPUBReleaseStoreFile")) {
+if (source.includes(legacySigningVariables)) {
+  source = source.replace(legacySigningVariables, signingVariables);
+} else if (!source.includes("readEPUBKeystoreProperties") && !source.includes("readEPUBReleaseStoreFile")) {
   source = source.replace("android {", `${signingVariables}android {`);
 }
 
@@ -33,6 +53,16 @@ const debugSigningBlock = `        debug {
         }`;
 
 const releaseSigningBlock = `${debugSigningBlock}
+        if (hasReadEPUBReleaseSigning) {
+            release {
+                storeFile file(readEPUBReleaseStoreFile)
+                storePassword readEPUBReleaseStorePassword
+                keyAlias readEPUBReleaseKeyAlias
+                keyPassword readEPUBReleaseKeyPassword
+            }
+        }`;
+
+const legacyReleaseSigningBlock = `${debugSigningBlock}
         release {
             storeFile file(readEPUBReleaseStoreFile)
             storePassword readEPUBReleaseStorePassword
@@ -40,7 +70,9 @@ const releaseSigningBlock = `${debugSigningBlock}
             keyPassword readEPUBReleaseKeyPassword
         }`;
 
-if (!source.includes("release {\n            storeFile file(readEPUBReleaseStoreFile)")) {
+if (source.includes(legacyReleaseSigningBlock)) {
+  source = source.replace(legacyReleaseSigningBlock, releaseSigningBlock);
+} else if (!source.includes("storeFile file(readEPUBReleaseStoreFile)")) {
   if (!source.includes(debugSigningBlock)) {
     console.error("无法定位 Android debug signingConfig，请检查 android/app/build.gradle。");
     process.exit(1);
@@ -48,30 +80,73 @@ if (!source.includes("release {\n            storeFile file(readEPUBReleaseStore
   source = source.replace(debugSigningBlock, releaseSigningBlock);
 }
 
-const debugReleaseSigningLine = "            signingConfig signingConfigs.debug";
-const formalReleaseSigningLine = "            signingConfig signingConfigs.release";
-const releaseBuildComment = `            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-`;
+source = source.replace(
+  `        debug {
+            signingConfig signingConfigs.release
+        }`,
+  `        debug {
+            if (hasReadEPUBReleaseSigning) {
+                signingConfig signingConfigs.release
+            } else {
+                signingConfig signingConfigs.debug
+            }
+        }`
+);
 
-if (source.includes(releaseBuildComment + debugReleaseSigningLine)) {
-  source = source.replace(releaseBuildComment + debugReleaseSigningLine, formalReleaseSigningLine);
-} else {
-  const releaseBlockStart = source.indexOf("        release {");
+source = updateReleaseBuildTypeSigning(source);
+
+fs.writeFileSync(buildGradlePath, source);
+console.log("Android release signing configuration is ready.");
+
+function updateReleaseBuildTypeSigning(sourceText) {
+  const buildTypesStart = sourceText.indexOf("    buildTypes {");
+  if (buildTypesStart === -1) {
+    console.error("无法定位 Android buildTypes，请检查 android/app/build.gradle。");
+    process.exit(1);
+  }
+
+  const releaseBlockStart = sourceText.indexOf("        release {", buildTypesStart);
   if (releaseBlockStart === -1) {
     console.error("无法定位 Android release buildType，请检查 android/app/build.gradle。");
     process.exit(1);
   }
-  const afterReleaseStart = source.slice(releaseBlockStart);
-  const debugLineInRelease = afterReleaseStart.indexOf(debugReleaseSigningLine);
-  const formalLineInRelease = afterReleaseStart.indexOf(formalReleaseSigningLine);
-  if (debugLineInRelease !== -1 && (formalLineInRelease === -1 || debugLineInRelease < formalLineInRelease)) {
-    const absoluteIndex = releaseBlockStart + debugLineInRelease;
-    source = `${source.slice(0, absoluteIndex)}${formalReleaseSigningLine}${source.slice(
-      absoluteIndex + debugReleaseSigningLine.length
-    )}`;
+
+  const releaseBlockEnd = findBlockEnd(sourceText, sourceText.indexOf("{", releaseBlockStart));
+  const releaseBlock = sourceText.slice(releaseBlockStart, releaseBlockEnd + 1);
+  if (releaseBlock.includes("hasReadEPUBReleaseSigning")) {
+    return sourceText;
   }
+
+  const releaseSigningConfigBlock = `            if (hasReadEPUBReleaseSigning) {
+                signingConfig signingConfigs.release
+            } else {
+                signingConfig signingConfigs.debug
+            }`;
+  const releaseBuildComment = `            // Caution! In production, you need to generate your own keystore file.
+            // see https://reactnative.dev/docs/signed-apk-android.
+`;
+  const nextReleaseBlock = releaseBlock
+    .replace(releaseBuildComment, "")
+    .replace("            signingConfig signingConfigs.debug", releaseSigningConfigBlock)
+    .replace("            signingConfig signingConfigs.release", releaseSigningConfigBlock);
+
+  return `${sourceText.slice(0, releaseBlockStart)}${nextReleaseBlock}${sourceText.slice(releaseBlockEnd + 1)}`;
 }
 
-fs.writeFileSync(buildGradlePath, source);
-console.log("Android release signing configuration is ready.");
+function findBlockEnd(sourceText, openingBraceIndex) {
+  let depth = 0;
+  for (let index = openingBraceIndex; index < sourceText.length; index += 1) {
+    const char = sourceText[index];
+    if (char === "{") {
+      depth += 1;
+    }
+    if (char === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return index;
+      }
+    }
+  }
+  console.error("Android build.gradle 块结构不完整，请检查文件。");
+  process.exit(1);
+}

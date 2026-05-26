@@ -18,7 +18,7 @@ const parser = new XMLParser({
   textNodeName: "#text"
 });
 
-export async function parseEpubMetadataFromBase64(base64: string): Promise<ParsedEpubMetadata> {
+export async function parseEpubMetadataFromBase64(base64: string, fallbackTitle = "未命名书籍"): Promise<ParsedEpubMetadata> {
   const zip = await JSZip.loadAsync(base64, { base64: true });
   const containerXml = await zip.file("META-INF/container.xml")?.async("string");
   if (!containerXml) {
@@ -42,7 +42,7 @@ export async function parseEpubMetadataFromBase64(base64: string): Promise<Parse
   const metadata = pkg?.metadata ?? {};
   const manifestItems = normalizeArray(pkg?.manifest?.item);
 
-  const title = stringValue(firstOf(metadata["dc:title"])) || "未命名书籍";
+  const title = stringValue(firstOf(metadata["dc:title"])) || fallbackTitle;
   const author = stringValue(firstOf(metadata["dc:creator"])) || null;
   const identifier = stringValue(firstOf(metadata["dc:identifier"])) || null;
 

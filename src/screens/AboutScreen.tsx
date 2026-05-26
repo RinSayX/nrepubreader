@@ -2,6 +2,7 @@ import Constants from "expo-constants";
 import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { getTranslations } from "@/i18n";
 import { getAppTheme } from "@/theme/appTheme";
 import { colors, spacing } from "@/theme/tokens";
 import { useLibraryStore } from "@/store/libraryStore";
@@ -13,7 +14,8 @@ const THIRD_PARTY_NOTICES_URL = `${REPOSITORY_URL}/blob/main/THIRD_PARTY_NOTICES
 export function AboutScreen() {
   const preference = useLibraryStore((state) => state.preference);
   const theme = getAppTheme(preference);
-  const appVersion = Constants.expoConfig?.version ?? Constants.nativeAppVersion ?? "未知";
+  const t = getTranslations(preference.language);
+  const appVersion = Constants.expoConfig?.version ?? Constants.nativeAppVersion ?? t.about.unknown;
   const buildVersion = Constants.nativeBuildVersion ?? null;
 
   return (
@@ -21,20 +23,20 @@ export function AboutScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         <View style={[styles.panel, { backgroundColor: theme.panel, borderColor: theme.border }]}>
           <Text style={[styles.appName, { color: theme.text }]}>ReadEPUB</Text>
-          <Text style={[styles.description, { color: theme.muted }]}>仅本地离线使用的 EPUB/TXT 阅读器</Text>
+          <Text style={[styles.description, { color: theme.muted }]}>{t.about.description}</Text>
 
           <View style={[styles.divider, { backgroundColor: theme.border }]} />
 
-          <InfoRow label="版本" value={`v${appVersion}`} theme={theme} />
-          {buildVersion ? <InfoRow label="构建号" value={buildVersion} theme={theme} /> : null}
-          <InfoRow label="许可证" value="MIT License" theme={theme} />
-          <LinkRow label="开源项目地址" value={REPOSITORY_URL} theme={theme} onPress={() => void openUrl(REPOSITORY_URL)} />
-          <LinkRow label="许可证文件" value="LICENSE" theme={theme} onPress={() => void openUrl(LICENSE_URL)} />
+          <InfoRow label={t.about.version} value={`v${appVersion}`} theme={theme} />
+          {buildVersion ? <InfoRow label={t.about.build} value={buildVersion} theme={theme} /> : null}
+          <InfoRow label={t.about.license} value="MIT License" theme={theme} />
+          <LinkRow label={t.about.repository} value={REPOSITORY_URL} theme={theme} onPress={() => void openUrl(REPOSITORY_URL, t.about.openLinkFailed)} />
+          <LinkRow label={t.about.licenseFile} value="LICENSE" theme={theme} onPress={() => void openUrl(LICENSE_URL, t.about.openLinkFailed)} />
           <LinkRow
-            label="第三方组件声明"
+            label={t.about.thirdPartyNotices}
             value="THIRD_PARTY_NOTICES.md"
             theme={theme}
-            onPress={() => void openUrl(THIRD_PARTY_NOTICES_URL)}
+            onPress={() => void openUrl(THIRD_PARTY_NOTICES_URL, t.about.openLinkFailed)}
           />
         </View>
       </ScrollView>
@@ -77,11 +79,11 @@ function LinkRow({
   );
 }
 
-async function openUrl(url: string) {
+async function openUrl(url: string, errorTitle: string) {
   try {
     await Linking.openURL(url);
   } catch {
-    Alert.alert("无法打开链接", url);
+    Alert.alert(errorTitle, url);
   }
 }
 

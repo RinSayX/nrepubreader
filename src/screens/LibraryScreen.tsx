@@ -5,6 +5,7 @@ import { ActivityIndicator, Alert, FlatList, Image, Modal, Pressable, StyleSheet
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { PrimaryButton } from "@/components/PrimaryButton";
+import { getTranslations } from "@/i18n";
 import { getAppTheme } from "@/theme/appTheme";
 import { colors, spacing } from "@/theme/tokens";
 import { useLibraryStore } from "@/store/libraryStore";
@@ -60,9 +61,10 @@ export function LibraryScreen({ navigation }: Props) {
   const [createSeriesVisible, setCreateSeriesVisible] = useState(false);
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const suppressPressUntilRef = useRef(0);
+  const t = getTranslations(preference.language);
   const libraryItems = useMemo(
-    () => sortLibraryItems([...seriesSummaries.map(seriesToItem), ...unassignedBooks.map(bookToItem)]),
-    [seriesSummaries, unassignedBooks]
+    () => sortLibraryItems([...seriesSummaries.map((series) => seriesToItem(series, t)), ...unassignedBooks.map((book) => bookToItem(book, t))]),
+    [seriesSummaries, t, unassignedBooks]
   );
   const visibleItems = useMemo(() => filterLibraryItems(libraryItems, searchQuery), [libraryItems, searchQuery]);
   const hasSearch = searchQuery.trim().length > 0;
@@ -86,7 +88,7 @@ export function LibraryScreen({ navigation }: Props) {
       setCreateSeriesVisible(false);
       navigation.navigate("Series", { seriesId: created.id, seriesName: created.name });
     } catch {
-      Alert.alert("创建失败", "请换一个系列名称。");
+      Alert.alert(t.library.createSeriesFailed, t.library.createSeriesFailedMessage);
     }
   }
 
@@ -159,32 +161,32 @@ export function LibraryScreen({ navigation }: Props) {
       return;
     }
 
-    const selectedBooks = unassignedBooks.filter((book) => selectedKeys.has(libraryItemKey(bookToItem(book))));
-    const selectedSeries = seriesSummaries.filter((series) => selectedKeys.has(libraryItemKey(seriesToItem(series))));
+    const selectedBooks = unassignedBooks.filter((book) => selectedKeys.has(libraryItemKey(bookToItem(book, t))));
+    const selectedSeries = seriesSummaries.filter((series) => selectedKeys.has(libraryItemKey(seriesToItem(series, t))));
     const nonEmptySeriesCount = selectedSeries.filter((series) => series.bookCount > 0).length;
     const emptySeriesCount = selectedSeries.length - nonEmptySeriesCount;
     const messageParts = [];
 
     if (selectedBooks.length > 0) {
-      messageParts.push(`${selectedBooks.length} 本未加入系列的书`);
+      messageParts.push(t.library.unassignedBooks(selectedBooks.length));
     }
     if (nonEmptySeriesCount > 0) {
       const booksInSeriesCount = selectedSeries.reduce((sum, series) => sum + series.bookCount, 0);
-      messageParts.push(`${nonEmptySeriesCount} 个系列及其中 ${booksInSeriesCount} 本书`);
+      messageParts.push(t.library.seriesAndBooks(nonEmptySeriesCount, booksInSeriesCount));
     }
     if (emptySeriesCount > 0) {
-      messageParts.push(`${emptySeriesCount} 个空系列`);
+      messageParts.push(t.library.emptySeries(emptySeriesCount));
     }
     const deleteBookFilesNote =
-      selectedBookCount > 0 ? "相关书籍文件、封面和阅读进度会从本机移除，删除后无法恢复。" : "空系列删除后无法恢复。";
+      selectedBookCount > 0 ? t.library.deleteBookFilesNote : t.library.deleteEmptySeriesNote;
 
     Alert.alert(
-      "删除所选内容",
-      `将删除 ${messageParts.join("、")}。${deleteBookFilesNote}`,
+      t.library.deleteSelectedTitle,
+      t.library.deleteSelectedMessage(messageParts.join(preference.language === "en" ? ", " : "、"), deleteBookFilesNote),
       [
-        { text: "取消", style: "cancel" },
+        { text: t.common.cancel, style: "cancel" },
         {
-          text: "删除",
+          text: t.common.delete,
           style: "destructive",
           onPress: () => {
             void (async () => {
@@ -197,7 +199,7 @@ export function LibraryScreen({ navigation }: Props) {
                 }
                 exitManageMode();
               } catch {
-                Alert.alert("删除失败", "部分内容可能没有删除成功，请刷新后重试。");
+                Alert.alert(t.library.deleteFailed, t.library.deleteFailedMessage);
               }
             })();
           }
@@ -212,18 +214,19 @@ export function LibraryScreen({ navigation }: Props) {
         <View style={styles.manageToolbar}>
           <View style={styles.manageCopy}>
             <Text style={[styles.manageTitle, { color: theme.text }]} numberOfLines={1}>
-              已选择 {selectedItems.length} 项
+              {t.library.selectedItems(selectedItems.length)}
             </Text>
             <Text style={[styles.manageHint, { color: theme.muted }]} numberOfLines={1}>
-              包含 {selectedBookCount} 本书
+              {t.library.includesBooks(selectedBookCount)}
             </Text>
           </View>
           <View style={styles.manageActions}>
             <PrimaryButton variant="secondary" onPress={exitManageMode}>
-              取消
+              {t.common.cancel}
             </PrimaryButton>
             <PrimaryButton variant="danger" onPress={confirmDeleteSelected} disabled={selectedItems.length === 0 || loading}>
-              删除{selectedItems.length ? `(${selectedItems.length})` : ""}
+              {t.common.delete}
+              {selectedItems.length ? `(${selectedItems.length})` : ""}
             </PrimaryButton>
           </View>
         </View>
@@ -232,7 +235,7 @@ export function LibraryScreen({ navigation }: Props) {
           <TextInput
             value={searchQuery}
             onChangeText={setSearchQuery}
-            placeholder="搜索书名、系列或作者"
+            placeholder={t.library.searchPlaceholder}
             placeholderTextColor={theme.muted}
             style={[styles.searchInput, { backgroundColor: theme.panel, borderColor: theme.border, color: theme.text }]}
             returnKeyType="search"
@@ -257,9 +260,9 @@ export function LibraryScreen({ navigation }: Props) {
         contentContainerStyle={visibleItems.length === 0 ? styles.emptyList : styles.libraryGrid}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Text style={[styles.emptyTitle, { color: theme.text }]}>{hasSearch ? "没有找到匹配项" : "还没有书"}</Text>
+            <Text style={[styles.emptyTitle, { color: theme.text }]}>{hasSearch ? t.library.emptySearchTitle : t.library.emptyLibraryTitle}</Text>
             <Text style={[styles.emptyText, { color: theme.muted }]}>
-              {hasSearch ? "换一个关键词试试。" : "导入 EPUB 或 TXT 后，单本书会直接显示；也可以创建系列来收纳多册小说。"}
+              {hasSearch ? t.library.emptySearchHint : t.library.emptyLibraryHint}
             </Text>
           </View>
         }
@@ -276,25 +279,25 @@ export function LibraryScreen({ navigation }: Props) {
         )}
       />
 
-      <ActionMenu title="添加" visible={addMenuVisible} theme={theme} onClose={() => setAddMenuVisible(false)}>
-        <MenuItem label="导入书籍" theme={theme} onPress={() => void handleImportBook()} />
-        <MenuItem label="新建系列" theme={theme} onPress={openCreateSeries} />
+      <ActionMenu title={t.library.add} visible={addMenuVisible} theme={theme} onClose={() => setAddMenuVisible(false)}>
+        <MenuItem label={t.library.importBooks} theme={theme} onPress={() => void handleImportBook()} />
+        <MenuItem label={t.library.newSeries} theme={theme} onPress={openCreateSeries} />
       </ActionMenu>
 
-      <ActionMenu title="设置" visible={settingsMenuVisible} theme={theme} onClose={() => setSettingsMenuVisible(false)}>
-        <MenuItem label="阅读设置" theme={theme} onPress={openReaderSettings} />
-        <MenuItem label="管理书库" theme={theme} onPress={enterManageMode} disabled={libraryItems.length === 0} />
-        <MenuItem label="关于" theme={theme} onPress={openAbout} />
+      <ActionMenu title={t.library.settings} visible={settingsMenuVisible} theme={theme} onClose={() => setSettingsMenuVisible(false)}>
+        <MenuItem label={t.library.readerSettings} theme={theme} onPress={openReaderSettings} />
+        <MenuItem label={t.library.manageLibrary} theme={theme} onPress={enterManageMode} disabled={libraryItems.length === 0} />
+        <MenuItem label={t.library.about} theme={theme} onPress={openAbout} />
       </ActionMenu>
 
       <Modal visible={createSeriesVisible} animationType="fade" transparent onRequestClose={() => setCreateSeriesVisible(false)}>
         <View style={styles.modalScrim}>
           <View style={[styles.dialog, { backgroundColor: theme.background }]}>
-            <Text style={[styles.dialogTitle, { color: theme.text }]}>新建系列</Text>
+            <Text style={[styles.dialogTitle, { color: theme.text }]}>{t.library.newSeriesTitle}</Text>
             <TextInput
               value={seriesName}
               onChangeText={setSeriesName}
-              placeholder="例如：三体"
+              placeholder={t.library.seriesPlaceholder}
               placeholderTextColor={theme.muted}
               style={[styles.input, { backgroundColor: theme.panel, borderColor: theme.border, color: theme.text }]}
               returnKeyType="done"
@@ -309,10 +312,10 @@ export function LibraryScreen({ navigation }: Props) {
                   setCreateSeriesVisible(false);
                 }}
               >
-                取消
+                {t.common.cancel}
               </PrimaryButton>
               <PrimaryButton variant="secondary" onPress={handleCreateSeries} disabled={!seriesName.trim()}>
-                创建
+                {t.library.create}
               </PrimaryButton>
             </View>
           </View>
@@ -444,12 +447,12 @@ function LibraryBookRow({
   );
 }
 
-function seriesToItem(series: SeriesSummary): LibraryItem {
+function seriesToItem(series: SeriesSummary, t: ReturnType<typeof getTranslations>): LibraryItem {
   return {
     type: "series",
     id: series.id,
     title: series.name,
-    subtitle: `${series.bookCount} 本图书`,
+    subtitle: t.library.seriesBookCount(series.bookCount),
     coverPath: series.coverPaths[0] ?? null,
     sortTitle: series.name,
     recentDate: series.latestOpenedAt ?? series.createdAt,
@@ -458,12 +461,12 @@ function seriesToItem(series: SeriesSummary): LibraryItem {
   };
 }
 
-function bookToItem(book: Book): LibraryItem {
+function bookToItem(book: Book, t: ReturnType<typeof getTranslations>): LibraryItem {
   return {
     type: "book",
     id: book.id,
     title: book.title,
-    subtitle: book.author ?? "未知作者",
+    subtitle: book.author ?? t.common.unknownAuthor,
     coverPath: book.coverPath,
     sortTitle: book.title,
     recentDate: book.lastOpenedAt ?? book.createdAt,

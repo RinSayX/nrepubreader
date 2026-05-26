@@ -5,6 +5,7 @@ import { ActivityIndicator, Alert, Animated, FlatList, Modal, Pressable, StyleSh
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 
+import { getTranslations } from "@/i18n";
 import { encodeReaderMessage, parseWebReaderMessage, preferenceToReaderPayload } from "@/reader/messages";
 import { READER_HTML } from "@/reader/readerHtml";
 import { TXT_READER_HTML } from "@/reader/txtReaderHtml";
@@ -71,6 +72,7 @@ export function ReaderScreen({ navigation, route }: Props) {
   const [currentChapterHref, setCurrentChapterHref] = useState<string | null>(null);
   const [tocVisible, setTocVisible] = useState(false);
   const isDark = preference.themeMode === "dark";
+  const t = getTranslations(preference.language);
   const tocDrawerWidth = Math.min(Math.max(width * 0.82, 280), 380);
   const visibleToc = useMemo(() => getVisibleTocItems(toc, collapsedTocIds), [collapsedTocIds, toc]);
   const collapsibleTocIds = useMemo(() => getCollapsibleTocIds(toc), [toc]);
@@ -100,11 +102,11 @@ export function ReaderScreen({ navigation, route }: Props) {
       transfer.timeoutId = setTimeout(() => {
         if (activeTransferRef.current === transfer) {
           activeTransferRef.current = null;
-          transfer.reject(new Error("书籍传输超时，请重试。"));
+          transfer.reject(new Error(t.reader.transferTimeout));
         }
       }, BOOK_TRANSFER_TIMEOUT_MS);
     },
-    [clearTransferTimeout]
+    [clearTransferTimeout, t.reader.transferTimeout]
   );
 
   const rejectTransfer = useCallback(
@@ -167,7 +169,7 @@ export function ReaderScreen({ navigation, route }: Props) {
       new Promise<void>((resolve, reject) => {
         const previousTransfer = activeTransferRef.current;
         if (previousTransfer) {
-          rejectTransfer(previousTransfer, new Error("新的书籍传输已开始。"));
+          rejectTransfer(previousTransfer, new Error(t.reader.transferRestarted));
         }
 
         const transfer: ActiveBookTransfer = {
@@ -198,7 +200,7 @@ export function ReaderScreen({ navigation, route }: Props) {
         armTransferTimeout(transfer);
         setTimeout(sendAvailableBookChunks, 0);
       }),
-    [armTransferTimeout, initialCfi, initialPosition, preference, rejectTransfer, send, sendAvailableBookChunks]
+    [armTransferTimeout, initialCfi, initialPosition, preference, rejectTransfer, send, sendAvailableBookChunks, t.reader.transferRestarted]
   );
 
   useEffect(() => {
@@ -231,11 +233,11 @@ export function ReaderScreen({ navigation, route }: Props) {
           await sendBookToWebView(book, fileBase64);
         } catch (error) {
           hasSentLoadRef.current = false;
-          Alert.alert("打开失败", error instanceof Error ? error.message : "无法读取本地书籍文件。");
+          Alert.alert(t.reader.openFailed, error instanceof Error ? error.message : t.reader.readFileFailed);
         }
       })();
     }
-  }, [book, markBookOpened, sendBookToWebView, webReady]);
+  }, [book, markBookOpened, sendBookToWebView, t.reader.openFailed, t.reader.readFileFailed, webReady]);
 
   useEffect(() => {
     if (webReady) {
@@ -354,16 +356,16 @@ export function ReaderScreen({ navigation, route }: Props) {
     <SafeAreaView edges={["top", "bottom"]} style={[styles.root, { backgroundColor: preference.backgroundColor }]}>
       <View style={[styles.topBar, readerChromeStyle]}>
         <Pressable onPress={() => navigation.goBack()} style={styles.iconButton}>
-          <Text style={[styles.iconText, readerChromeTextStyle]}>返回</Text>
+          <Text style={[styles.iconText, readerChromeTextStyle]}>{t.reader.back}</Text>
         </Pressable>
         <Text numberOfLines={1} style={[styles.readerTitle, readerChromeTextStyle]}>
           {book.title}
         </Text>
         <Pressable onPress={openToc} style={styles.iconButton}>
-          <Text style={[styles.iconText, readerChromeTextStyle]}>目录</Text>
+          <Text style={[styles.iconText, readerChromeTextStyle]}>{t.reader.toc}</Text>
         </Pressable>
         <Pressable onPress={() => navigation.navigate("Settings")} style={styles.iconButton}>
-          <Text style={[styles.iconText, readerChromeTextStyle]}>设置</Text>
+          <Text style={[styles.iconText, readerChromeTextStyle]}>{t.reader.settings}</Text>
         </Pressable>
       </View>
 
@@ -421,7 +423,7 @@ export function ReaderScreen({ navigation, route }: Props) {
             }
 
             if (message.type === "RENDER_ERROR") {
-              Alert.alert("打开失败", message.payload.message);
+              Alert.alert(t.reader.openFailed, message.payload.message);
             }
           }}
           style={styles.webview}
@@ -441,7 +443,7 @@ export function ReaderScreen({ navigation, route }: Props) {
       <View style={[styles.bottomBar, readerChromeStyle]}>
         <View style={styles.bottomSlot}>
           <Pressable style={styles.pageButton} onPress={() => send({ type: "PREV_PAGE" })}>
-            <Text style={[styles.pageText, readerChromeTextStyle]}>上一页</Text>
+            <Text style={[styles.pageText, readerChromeTextStyle]}>{t.reader.prevPage}</Text>
           </Pressable>
         </View>
         <View style={styles.progressSlot}>
@@ -449,7 +451,7 @@ export function ReaderScreen({ navigation, route }: Props) {
         </View>
         <View style={[styles.bottomSlot, styles.rightSlot]}>
           <Pressable style={styles.pageButton} onPress={() => send({ type: "NEXT_PAGE" })}>
-            <Text style={[styles.pageText, readerChromeTextStyle]}>下一页</Text>
+            <Text style={[styles.pageText, readerChromeTextStyle]}>{t.reader.nextPage}</Text>
           </Pressable>
         </View>
       </View>
@@ -471,19 +473,19 @@ export function ReaderScreen({ navigation, route }: Props) {
           >
             <View style={styles.tocHeader}>
               <View style={styles.tocHeaderText}>
-                <Text style={[styles.tocTitle, isDark && styles.darkText]}>目录</Text>
+                <Text style={[styles.tocTitle, isDark && styles.darkText]}>{t.reader.toc}</Text>
               </View>
               <Pressable style={styles.closeButton} onPress={closeToc}>
-                <Text style={styles.closeText}>关闭</Text>
+                <Text style={styles.closeText}>{t.reader.close}</Text>
               </Pressable>
             </View>
 
             <View style={styles.tocTools}>
               <Pressable style={styles.toolButton} onPress={() => setCollapsedTocIds(new Set(collapsibleTocIds))}>
-                <Text style={styles.toolButtonText}>全部收起</Text>
+                <Text style={styles.toolButtonText}>{t.reader.collapseAll}</Text>
               </Pressable>
               <Pressable style={styles.toolButton} onPress={() => setCollapsedTocIds(new Set())}>
-                <Text style={styles.toolButtonText}>全部展开</Text>
+                <Text style={styles.toolButtonText}>{t.reader.expandAll}</Text>
               </Pressable>
             </View>
 
@@ -511,7 +513,7 @@ export function ReaderScreen({ navigation, route }: Props) {
                   });
                 }, 80);
               }}
-              ListEmptyComponent={<Text style={[styles.emptyToc, isDark && styles.darkMutedText]}>这本书没有可用目录。</Text>}
+              ListEmptyComponent={<Text style={[styles.emptyToc, isDark && styles.darkMutedText]}>{t.reader.emptyToc}</Text>}
               renderItem={({ item }) => {
                 const active = isCurrentChapter(item.href, currentChapterHref);
                 const tocIndex = toc.findIndex((tocItem) => tocItem.id === item.id);

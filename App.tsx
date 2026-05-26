@@ -7,6 +7,7 @@ import { useEffect } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
+import { getTranslations } from "@/i18n";
 import { AboutScreen } from "@/screens/AboutScreen";
 import { BookDetailScreen } from "@/screens/BookDetailScreen";
 import { LibraryScreen } from "@/screens/LibraryScreen";
@@ -28,6 +29,7 @@ export default function App() {
   const error = useLibraryStore((state) => state.error);
   const preference = useLibraryStore((state) => state.preference);
   const theme = getAppTheme(preference);
+  const t = getTranslations(preference.language);
 
   useEffect(() => {
     void initialize();
@@ -58,11 +60,11 @@ export default function App() {
             contentStyle: { backgroundColor: theme.background }
           }}
         >
-          <Stack.Screen name="Library" component={LibraryScreen} options={{ title: "书库" }} />
-          <Stack.Screen name="BookDetail" component={BookDetailScreen} options={{ title: "书籍详情" }} />
-          <Stack.Screen name="Series" component={SeriesScreen} options={({ route }) => ({ title: route.params.seriesName ?? "系列详情" })} />
-          <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: "阅读设置" }} />
-          <Stack.Screen name="About" component={AboutScreen} options={{ title: "关于" }} />
+          <Stack.Screen name="Library" component={LibraryScreen} options={{ title: t.nav.library }} />
+          <Stack.Screen name="BookDetail" component={BookDetailScreen} options={{ title: t.nav.bookDetail }} />
+          <Stack.Screen name="Series" component={SeriesScreen} options={({ route }) => ({ title: route.params.seriesName ?? t.nav.seriesDetail })} />
+          <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: t.nav.settings }} />
+          <Stack.Screen name="About" component={AboutScreen} options={{ title: t.nav.about }} />
           <Stack.Screen name="Reader" component={ReaderScreen} options={{ title: "", headerShown: false }} />
         </Stack.Navigator>
       </NavigationContainer>

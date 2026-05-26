@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS reading_progress (
 CREATE TABLE IF NOT EXISTS reader_preferences (
   id TEXT PRIMARY KEY NOT NULL,
   themeMode TEXT NOT NULL,
+  language TEXT NOT NULL DEFAULT 'zh-CN',
   fontFamily TEXT NOT NULL,
   fontSize INTEGER NOT NULL,
   lineHeight REAL NOT NULL,

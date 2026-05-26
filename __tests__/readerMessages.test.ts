@@ -39,6 +39,7 @@ describe("reader message helpers", () => {
   it("maps preferences into reader theme and font payloads", () => {
     const preference: ReaderPreference = {
       themeMode: "dark",
+      language: "zh-CN",
       fontFamily: "Noto Serif SC",
       fontSize: 20,
       lineHeight: 1.8,

@@ -12,6 +12,7 @@ export async function getDatabase() {
       await db.execAsync(schemaSql);
       await ensureColumn(db, "books", "format", "TEXT NOT NULL DEFAULT 'epub'");
       await ensureColumn(db, "reading_progress", "position", "INTEGER");
+      await ensureColumn(db, "reader_preferences", "language", "TEXT NOT NULL DEFAULT 'zh-CN'");
       return db;
     });
   }

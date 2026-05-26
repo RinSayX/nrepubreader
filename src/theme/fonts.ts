@@ -2,7 +2,7 @@ import { useFonts } from "expo-font";
 import { NotoSansSC_400Regular } from "@expo-google-fonts/noto-sans-sc/400Regular";
 
 export const fontOptions = [
-  { label: "系统默认", value: "System" },
+  { label: { "zh-CN": "系统默认", en: "System default" }, value: "System" },
   { label: "Noto Sans SC", value: "Noto Sans SC" },
   { label: "PingFang SC", value: "PingFang SC" }
 ];

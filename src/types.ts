@@ -1,5 +1,7 @@
 export type ThemeMode = "light" | "dark";
 
+export type AppLanguage = "zh-CN" | "en";
+
 export type SortMode = "recent" | "created" | "title";
 
 export type BookFormat = "epub" | "txt";
@@ -49,6 +51,7 @@ export type ReadingProgress = {
 
 export type ReaderPreference = {
   themeMode: ThemeMode;
+  language: AppLanguage;
   fontFamily: string;
   fontSize: number;
   lineHeight: number;

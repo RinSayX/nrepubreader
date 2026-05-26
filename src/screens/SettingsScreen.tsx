@@ -1,30 +1,52 @@
 import { ScrollView, StyleSheet, Switch, Text, Pressable, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { getTranslations, languageOptions } from "@/i18n";
 import { fontOptions } from "@/theme/fonts";
 import { getAppTheme } from "@/theme/appTheme";
 import { colors, spacing } from "@/theme/tokens";
 import { useLibraryStore } from "@/store/libraryStore";
 
 const colorPresets = [
-  { label: "纸张", backgroundColor: "#fbf7ef", textColor: "#202124" },
-  { label: "纯白", backgroundColor: "#ffffff", textColor: "#1f2933" },
-  { label: "护眼", backgroundColor: "#edf5e1", textColor: "#22312a" },
-  { label: "夜间", backgroundColor: "#151515", textColor: "#ece7dd" }
-];
+  { key: "paper", backgroundColor: "#fbf7ef", textColor: "#202124" },
+  { key: "white", backgroundColor: "#ffffff", textColor: "#1f2933" },
+  { key: "eyeCare", backgroundColor: "#edf5e1", textColor: "#22312a" },
+  { key: "night", backgroundColor: "#151515", textColor: "#ece7dd" }
+] as const;
 
 export function SettingsScreen() {
   const preference = useLibraryStore((state) => state.preference);
   const savePreference = useLibraryStore((state) => state.savePreference);
   const theme = getAppTheme(preference);
+  const t = getTranslations(preference.language);
 
   return (
     <SafeAreaView edges={["bottom"]} style={[styles.root, { backgroundColor: theme.background }]}>
       <ScrollView contentContainerStyle={styles.content}>
+        <Text style={[styles.sectionTitle, { color: theme.text }]}>{t.settings.language}</Text>
+        <View style={styles.optionGrid}>
+          {languageOptions.map((language) => {
+            const selected = preference.language === language.value;
+            return (
+              <Pressable
+                key={language.value}
+                style={[
+                  styles.option,
+                  { backgroundColor: theme.panel, borderColor: theme.border },
+                  selected && styles.selectedOption
+                ]}
+                onPress={() => void savePreference({ ...preference, language: language.value })}
+              >
+                <Text style={[styles.optionText, { color: theme.text }]}>{language.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
         <View style={styles.row}>
           <View>
-            <Text style={[styles.label, { color: theme.text }]}>夜间模式</Text>
-            <Text style={[styles.hint, { color: theme.muted }]}>同步应用外壳和阅读页颜色</Text>
+            <Text style={[styles.label, { color: theme.text }]}>{t.settings.nightMode}</Text>
+            <Text style={[styles.hint, { color: theme.muted }]}>{t.settings.nightModeHint}</Text>
           </View>
           <Switch
             value={preference.themeMode === "dark"}
@@ -39,7 +61,7 @@ export function SettingsScreen() {
           />
         </View>
 
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>字体</Text>
+        <Text style={[styles.sectionTitle, { color: theme.text }]}>{t.settings.font}</Text>
         <View style={styles.optionGrid}>
           {fontOptions.map((font) => {
             const selected = preference.fontFamily === font.value;
@@ -54,14 +76,14 @@ export function SettingsScreen() {
                 onPress={() => void savePreference({ ...preference, fontFamily: font.value })}
               >
                 <Text style={[styles.optionText, { color: theme.text }, font.value !== "System" && { fontFamily: font.value }]}>
-                  {font.label}
+                  {typeof font.label === "string" ? font.label : font.label[preference.language]}
                 </Text>
               </Pressable>
             );
           })}
         </View>
 
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>字号</Text>
+        <Text style={[styles.sectionTitle, { color: theme.text }]}>{t.settings.fontSize}</Text>
         <View style={styles.stepperRow}>
           {[16, 18, 20, 22, 24].map((size) => (
             <Pressable
@@ -78,7 +100,7 @@ export function SettingsScreen() {
           ))}
         </View>
 
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>行高</Text>
+        <Text style={[styles.sectionTitle, { color: theme.text }]}>{t.settings.lineHeight}</Text>
         <View style={styles.stepperRow}>
           {[1.4, 1.55, 1.65, 1.8, 2].map((lineHeight) => (
             <Pressable
@@ -95,24 +117,24 @@ export function SettingsScreen() {
           ))}
         </View>
 
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>背景与文字</Text>
+        <Text style={[styles.sectionTitle, { color: theme.text }]}>{t.settings.colors}</Text>
         <View style={styles.optionGrid}>
           {colorPresets.map((preset) => {
             const selected = preference.backgroundColor === preset.backgroundColor && preference.textColor === preset.textColor;
             return (
               <Pressable
-                key={preset.label}
+                key={preset.key}
                 style={[styles.colorOption, selected && styles.selectedOption, { backgroundColor: preset.backgroundColor }]}
                 onPress={() =>
                   void savePreference({
                     ...preference,
                     backgroundColor: preset.backgroundColor,
                     textColor: preset.textColor,
-                    themeMode: preset.label === "夜间" ? "dark" : "light"
+                    themeMode: preset.key === "night" ? "dark" : "light"
                   })
                 }
               >
-                <Text style={[styles.colorLabel, { color: preset.textColor }]}>{preset.label}</Text>
+                <Text style={[styles.colorLabel, { color: preset.textColor }]}>{t.settings.presets[preset.key]}</Text>
               </Pressable>
             );
           })}
