@@ -50,7 +50,14 @@ Current releases provide ARM APKs:
 
 ## Screenshots
 
-Screenshots have not been added yet. Pull Requests are welcome.
+<table>
+  <tr>
+    <td><img src="screenshots/Image_01.jpg" width="250"></td>
+    <td><img src="screenshots/Image_02.jpg" width="250"></td>
+    <td><img src="screenshots/Image_03.jpg" width="250"></td>
+    <td><img src="screenshots/Image_04.jpg" width="250"></td>
+  </tr>
+</table>
 
 ## Tech Stack
 

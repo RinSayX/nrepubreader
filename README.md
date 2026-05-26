@@ -51,7 +51,14 @@ Android APK 可从 [GitHub Releases](https://github.com/RinSayX/nrepubreader/rel
 
 ## 截图
 
-暂未添加截图，欢迎通过 Pull Request 补充。
+<table>
+  <tr>
+    <td><img src="screenshots/Image_01.jpg" width="250"></td>
+    <td><img src="screenshots/Image_02.jpg" width="250"></td>
+    <td><img src="screenshots/Image_03.jpg" width="250"></td>
+    <td><img src="screenshots/Image_04.jpg" width="250"></td>
+  </tr>
+</table>
 
 ## 技术栈
 
