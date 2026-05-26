@@ -108,7 +108,8 @@ npm test
 - 该应用采用本地优先设计。目前没有账号系统、云同步、在线书城、DRM 支持、划线、笔记和全文搜索等功能。
 - EPUB 和 TXT 渲染都在 WebView 内完成。React Native 负责文件导入、本地存储、页面导航、阅读设置和数据持久化。
 - 导入的书籍会被复制到应用私有目录。卸载应用会删除本地书库和阅读进度，但不会删除原书籍文件。
-- Android 项目使用自适应图标。`assets/icon.png` 是通用应用图标；`assets/adaptive-icon.png` 是带安全边距的 Android 前景图标。
+- Android 项目使用自适应图标。`assets/icon.png` 是通用应用图标；`assets/adaptive-icon.png` 是带安全边距的 Android 前景图标。当前图标由 AI 辅助生成并经项目维护者整理后使用。
+- EPUB 阅读器依赖 JSZip 和 epub.js。二者都作为 npm 依赖锁定版本，并通过 `npm run generate:reader-vendor` 从 `node_modules` 生成本地 reader vendor 脚本，避免运行时从 CDN 加载。
 
 ## 测试
 
@@ -139,3 +140,5 @@ npm run lint
 ## 许可证
 
 本项目基于 [MIT License](./LICENSE) 开源。
+
+第三方依赖、字体和视觉资源遵循其各自许可证，详见 [第三方组件与许可证声明](./THIRD_PARTY_NOTICES.md)。

@@ -1,3 +1,5 @@
+import { EPUBJS_SCRIPT, JSZIP_SCRIPT } from "@/reader/vendorScripts";
+
 export const READER_HTML = String.raw`
 <!doctype html>
 <html>
@@ -43,8 +45,8 @@ export const READER_HTML = String.raw`
         color: #a83b3b;
       }
     </style>
-    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js"></script>
+    <script>${JSZIP_SCRIPT}</script>
+    <script>${EPUBJS_SCRIPT}</script>
   </head>
   <body>
     <div id="viewer"></div>
@@ -243,11 +245,11 @@ export const READER_HTML = String.raw`
       async function loadBook(payload) {
         try {
           if (!window.ePub) {
-            showError("EPUBJS_MISSING", "epub.js 未加载，请确认设备可访问脚本资源。");
+            showError("EPUBJS_MISSING", "epub.js 未加载，请重新生成本地 reader 资源。");
             return;
           }
           if (!window.JSZip) {
-            showError("JSZIP_MISSING", "JSZip 未加载，请确认设备可访问脚本资源。");
+            showError("JSZIP_MISSING", "JSZip 未加载，请重新生成本地 reader 资源。");
             return;
           }
 

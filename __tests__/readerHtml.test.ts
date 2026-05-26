@@ -1,13 +1,15 @@
 import { READER_HTML } from "@/reader/readerHtml";
 
 describe("reader HTML dependencies", () => {
-  it("loads JSZip before epub.js", () => {
-    const jszipIndex = READER_HTML.indexOf("jszip.min.js");
-    const epubIndex = READER_HTML.indexOf("epub.min.js");
+  it("bundles JSZip before epub.js without loading reader scripts from a CDN", () => {
+    const jszipIndex = READER_HTML.indexOf("JSZip v3.10.1");
+    const epubIndex = READER_HTML.indexOf("EPUBJS_VERSION");
 
     expect(jszipIndex).toBeGreaterThan(-1);
     expect(epubIndex).toBeGreaterThan(-1);
     expect(jszipIndex).toBeLessThan(epubIndex);
+    expect(READER_HTML).not.toContain("cdn.jsdelivr.net");
+    expect(READER_HTML).not.toContain("<script src=");
   });
 
   it("shows the first page before generating full-book locations", () => {
