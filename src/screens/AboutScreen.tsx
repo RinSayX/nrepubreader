@@ -19,18 +19,15 @@ export function AboutScreen() {
   return (
     <SafeAreaView edges={["bottom"]} style={[styles.root, { backgroundColor: theme.background }]}>
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={[styles.header, { backgroundColor: theme.panel, borderColor: theme.border }]}>
+        <View style={[styles.panel, { backgroundColor: theme.panel, borderColor: theme.border }]}>
           <Text style={[styles.appName, { color: theme.text }]}>ReadEPUB</Text>
-          <Text style={[styles.description, { color: theme.muted }]}>本地优先的 EPUB/TXT 阅读器</Text>
-        </View>
+          <Text style={[styles.description, { color: theme.muted }]}>仅本地离线使用的 EPUB/TXT 阅读器</Text>
 
-        <View style={[styles.section, { backgroundColor: theme.panel, borderColor: theme.border }]}>
+          <View style={[styles.divider, { backgroundColor: theme.border }]} />
+
           <InfoRow label="版本" value={`v${appVersion}`} theme={theme} />
           {buildVersion ? <InfoRow label="构建号" value={buildVersion} theme={theme} /> : null}
           <InfoRow label="许可证" value="MIT License" theme={theme} />
-        </View>
-
-        <View style={[styles.section, { backgroundColor: theme.panel, borderColor: theme.border }]}>
           <LinkRow label="开源项目地址" value={REPOSITORY_URL} theme={theme} onPress={() => void openUrl(REPOSITORY_URL)} />
           <LinkRow label="许可证文件" value="LICENSE" theme={theme} onPress={() => void openUrl(LICENSE_URL)} />
           <LinkRow
@@ -82,11 +79,6 @@ function LinkRow({
 
 async function openUrl(url: string) {
   try {
-    const supported = await Linking.canOpenURL(url);
-    if (!supported) {
-      Alert.alert("无法打开链接", url);
-      return;
-    }
     await Linking.openURL(url);
   } catch {
     Alert.alert("无法打开链接", url);
@@ -99,16 +91,15 @@ const styles = StyleSheet.create({
     backgroundColor: colors.paper
   },
   content: {
-    padding: spacing.lg,
-    gap: spacing.lg
+    padding: spacing.lg
   },
-  header: {
+  panel: {
     borderRadius: 8,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     backgroundColor: "#ffffff",
     padding: spacing.lg,
-    gap: spacing.sm
+    overflow: "hidden"
   },
   appName: {
     color: colors.ink,
@@ -119,28 +110,25 @@ const styles = StyleSheet.create({
   description: {
     color: colors.muted,
     fontSize: 15,
-    lineHeight: 21
+    lineHeight: 21,
+    marginTop: spacing.sm
   },
-  section: {
-    borderRadius: 8,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    backgroundColor: "#ffffff",
-    overflow: "hidden"
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    marginVertical: spacing.lg,
+    backgroundColor: colors.border
   },
   row: {
-    minHeight: 58,
+    minHeight: 56,
     justifyContent: "center",
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.md,
     gap: spacing.xs
   },
   linkRow: {
-    minHeight: 66,
+    minHeight: 64,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.md,
     gap: spacing.md
   },
   linkCopy: {

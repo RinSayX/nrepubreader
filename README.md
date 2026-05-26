@@ -1,8 +1,8 @@
 # ReadEPUB
 
-ReadEPUB 是一个本地优先的跨平台 EPUB/TXT 阅读器，基于 Expo Dev Client、React Native 和 TypeScript 构建，目标平台为 Android 和 iOS。
+ReadEPUB 是一个仅本地离线使用的跨平台 EPUB/TXT 阅读器，基于 Expo Dev Client、React Native 和 TypeScript 构建，目标平台为 Android 和 iOS。
 
-它专注于一个轻量、私有、可离线使用的阅读体验：导入本地 EPUB/TXT、管理书库和系列、分页阅读、保存阅读进度，并支持夜间模式和中文字体。
+它专注于一个轻量、私有、完全离线的阅读体验：导入本地 EPUB/TXT、管理书库和系列、分页阅读、保存阅读进度，并支持夜间模式和中文字体。
 
 ## 功能特性
 
@@ -130,7 +130,7 @@ npm test
 
 ## 开发说明
 
-- 该应用采用本地优先设计。目前没有账号系统、云同步、在线书城、DRM 支持、划线、笔记和全文搜索等功能。
+- 该应用仅本地离线使用。目前没有账号系统、网络同步、在线书城、DRM 支持、划线、笔记和全文搜索等功能。
 - EPUB 和 TXT 渲染都在 WebView 内完成。React Native 负责文件导入、本地存储、页面导航、阅读设置和数据持久化。
 - 导入的书籍会被复制到应用私有目录。卸载应用会删除本地书库和阅读进度，但不会删除原书籍文件。
 - Android release APK 使用本机固定 keystore 签名。更换 keystore 后无法覆盖安装旧版本；用户通常需要卸载重装，卸载会删除应用私有目录中的书库数据。
