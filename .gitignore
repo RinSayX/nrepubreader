@@ -5,5 +5,8 @@ dist/
 coverage/
 ios/
 android/
+*.jks
+*.keystore
+keystore.properties
 *.log
 .DS_Store

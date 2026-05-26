@@ -1,6 +1,6 @@
 {
   "name": "nrepubreader",
-  "version": "0.4.0",
+  "version": "1.0.0",
   "private": true,
   "main": "expo/AppEntry",
   "scripts": {
@@ -9,6 +9,7 @@
     "android": "npm run generate:reader-vendor && expo run:android",
     "ios": "npm run generate:reader-vendor && expo run:ios",
     "web": "npm run generate:reader-vendor && expo start --web",
+    "setup:android-release-keystore": "bash scripts/setup-android-release-keystore.sh",
     "build:android:release-apks": "npm run generate:reader-vendor && bash scripts/build-android-release-apks.sh",
     "test": "jest",
     "typecheck": "tsc --noEmit",

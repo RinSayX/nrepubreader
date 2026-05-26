@@ -71,6 +71,29 @@ npm run android
 npm run ios
 ```
 
+### Android 正式签名打包
+
+首次发布 release APK 前，先在本机生成固定的 Android release keystore：
+
+```bash
+npm run setup:android-release-keystore
+```
+
+该命令会生成：
+
+- `android/app/readerepub-release.jks`
+- `android/keystore.properties`
+
+这两个文件包含发布签名密钥和密码，已通过 `.gitignore` 排除，不应提交到仓库。请离线备份；后续所有 Android 发布都必须使用同一份 keystore，否则用户无法覆盖安装升级。
+
+生成 keystore 后，构建 ARM 架构 APK：
+
+```bash
+npm run build:android:release-apks
+```
+
+构建产物会输出到 `dist/` 目录。
+
 ## 常用命令
 
 ```bash
@@ -78,6 +101,8 @@ npm start
 npm run android
 npm run ios
 npm run web
+npm run setup:android-release-keystore
+npm run build:android:release-apks
 npm run typecheck
 npm run lint
 npm test
@@ -108,6 +133,7 @@ npm test
 - 该应用采用本地优先设计。目前没有账号系统、云同步、在线书城、DRM 支持、划线、笔记和全文搜索等功能。
 - EPUB 和 TXT 渲染都在 WebView 内完成。React Native 负责文件导入、本地存储、页面导航、阅读设置和数据持久化。
 - 导入的书籍会被复制到应用私有目录。卸载应用会删除本地书库和阅读进度，但不会删除原书籍文件。
+- Android release APK 使用本机固定 keystore 签名。更换 keystore 后无法覆盖安装旧版本；用户通常需要卸载重装，卸载会删除应用私有目录中的书库数据。
 - Android 项目使用自适应图标。`assets/icon.png` 是通用应用图标；`assets/adaptive-icon.png` 是带安全边距的 Android 前景图标。当前图标由 AI 辅助生成并经项目维护者整理后使用。
 - EPUB 阅读器依赖 JSZip 和 epub.js。二者都作为 npm 依赖锁定版本，并通过 `npm run generate:reader-vendor` 从 `node_modules` 生成本地 reader vendor 脚本，避免运行时从 CDN 加载。
 
