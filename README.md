@@ -2,25 +2,54 @@
 
 ReadEPUB 是一个仅本地离线使用的跨平台 EPUB/TXT 阅读器，基于 Expo Dev Client、React Native 和 TypeScript 构建，目标平台为 Android 和 iOS。
 
-它专注于一个轻量、私有、完全离线的阅读体验：导入本地 EPUB/TXT、管理书库和系列、分页阅读、保存阅读进度，并支持夜间模式和中文字体。
+它专注于轻量、私有、完全离线的阅读体验：导入本地 EPUB/TXT、管理书库和系列、分页阅读、保存阅读进度，并支持夜间模式、中文字体和中英文界面。
+
+## 目录
+
+- [功能特性](#功能特性)
+- [下载安装](#下载安装)
+- [技术栈](#技术栈)
+- [快速开始](#快速开始)
+- [Android 正式签名打包](#android-正式签名打包)
+- [常用命令](#常用命令)
+- [项目结构](#项目结构)
+- [开发说明](#开发说明)
+- [测试](#测试)
+- [参与贡献](#参与贡献)
+- [许可证](#许可证)
+- [English](#readepub-english)
 
 ## 功能特性
 
+- 仅本地离线使用：无账号、无云同步、无在线书城，书籍和阅读数据保存在设备本机。
 - 本地书籍导入：通过系统文件选择器导入 `.epub` 和 `.txt` 文件，并复制到应用私有目录。
+- 多文件导入：支持一次选择多本书导入，并在导入后继续补全元数据和封面。
 - 书库管理：未加入系列的书籍直接显示；系列以书籍卡片形式展示，并使用系列第一本书的封面。
-- 系列管理：创建系列，把同一部小说的不同册放在一个系列里；一本书只属于一个系列。
+- 系列管理：可创建系列，把同一部小说的不同册放在一个系列里；一本书只属于一个系列。
 - 搜索：支持按书籍名称、系列名称和作者搜索。
-- 分页阅读：EPUB 基于 WebView 和 epub.js 渲染，TXT 使用 WebView 分栏分页，支持上一页、下一页和左右滑动翻页。
+- 分页阅读：EPUB 基于 WebView 和 epub.js 渲染，TXT 使用 WebView 分栏分页。
+- 翻页交互：支持上一页、下一页、点击左右阅读区域翻页，以及左右滑动翻页。
 - TXT 自动目录：支持识别常见中文章节标题；无目录 TXT 会按固定长度生成分段目录。
 - 阅读进度：自动保存 EPUB CFI、TXT 字符位置和整本书百分比，再次打开书籍时恢复上次位置。
-- 目录跳转：阅读时可从左侧目录抽屉查看章节，并跳转到指定章节。
-- 阅读设置：支持夜间模式、字号、行高、背景色、文字颜色和中文字体。
+- 目录跳转：阅读时可从左侧目录抽屉查看章节，并跳转到指定章节；打开目录时会定位到当前章节附近。
+- 阅读设置：支持夜间模式、字号、行高、背景色、文字颜色和 Noto Sans SC 中文字体。
+- 语言设置：支持中文和 English。
 - 全局夜间模式：书库、系列页、详情页、设置页和阅读页统一跟随夜间模式。
-- 本地存储：书籍、系列、进度和阅读偏好都保存在本机 SQLite 和应用私有文件目录中。
+
+## 下载安装
+
+Android APK 可从 [GitHub Releases](https://github.com/RinSayX/nrepubreader/releases) 下载。
+
+当前发布提供 ARM 架构 APK：
+
+- `arm64-v8a`：适用于大多数现代 Android 手机。
+- `armeabi-v7a`：适用于 32 位 ARM 设备。
+
+> iOS 当前主要用于源码构建和本地调试，暂未提供公开安装包。
 
 ## 截图
 
-暂未添加截图，欢迎补充。
+暂未添加截图，欢迎通过 Pull Request 补充。
 
 ## 技术栈
 
@@ -57,7 +86,7 @@ npm install
 npm start
 ```
 
-该命令会以 Expo Dev Client 模式启动开发服务。
+该命令会生成阅读器 WebView 所需的本地 vendor 脚本，并以 Expo Dev Client 模式启动开发服务。
 
 ### 部署到 Android
 
@@ -71,7 +100,7 @@ npm run android
 npm run ios
 ```
 
-### Android 正式签名打包
+## Android 正式签名打包
 
 首次发布 release APK 前，先在本机生成固定的 Android release keystore：
 
@@ -101,6 +130,7 @@ npm start
 npm run android
 npm run ios
 npm run web
+npm run generate:reader-vendor
 npm run setup:android-release-keystore
 npm run build:android:release-apks
 npm run typecheck
@@ -115,6 +145,7 @@ npm test
 ├── App.tsx
 ├── app.json
 ├── assets/
+├── scripts/
 ├── src/
 │   ├── components/
 │   ├── db/
@@ -135,7 +166,7 @@ npm test
 - 导入的书籍会被复制到应用私有目录。卸载应用会删除本地书库和阅读进度，但不会删除原书籍文件。
 - Android release APK 使用本机固定 keystore 签名。更换 keystore 后无法覆盖安装旧版本；用户通常需要卸载重装，卸载会删除应用私有目录中的书库数据。
 - Android 项目使用自适应图标。`assets/icon.png` 是通用应用图标；`assets/adaptive-icon.png` 是带安全边距的 Android 前景图标。当前图标由 AI 辅助生成并经项目维护者整理后使用。
-- EPUB 阅读器依赖 JSZip 和 epub.js。二者都作为 npm 依赖锁定版本，并通过 `npm run generate:reader-vendor` 从 `node_modules` 生成本地 reader vendor 脚本，避免运行时从 CDN 加载。
+- EPUB 阅读器依赖 JSZip 和 epub.js。二者都作为 npm 依赖锁定版本，并通过 `npm run generate:reader-vendor` 从 `node_modules` 生成本地 reader vendor 脚本。
 
 ## 测试
 
@@ -161,10 +192,213 @@ npm run lint
 
 欢迎提交 Issue 和 Pull Request。
 
-如果要进行较大的功能改动，建议先创建 Issue 讨论方向。请尽量保持改动聚焦，提交前运行测试，并避免提交生成的原生构建产物。
+如果要进行较大的功能改动，建议先创建 Issue 讨论方向。请尽量保持改动聚焦，提交前运行测试，并避免提交生成的原生构建产物、签名文件、个人配置和导入的书籍文件。
 
 ## 许可证
 
 本项目基于 [MIT License](./LICENSE) 开源。
 
 第三方依赖、字体和视觉资源遵循其各自许可证，详见 [第三方组件与许可证声明](./THIRD_PARTY_NOTICES.md)。
+
+---
+
+# ReadEPUB English
+
+ReadEPUB is a local-only, offline cross-platform EPUB/TXT reader built with Expo Dev Client, React Native, and TypeScript. It targets Android and iOS.
+
+The project focuses on a lightweight and private reading experience: importing local EPUB/TXT files, managing a library and series, paginated reading, reading progress persistence, dark mode, Chinese font support, and Chinese/English UI.
+
+## Table of Contents
+
+- [Features](#features)
+- [Download](#download)
+- [Tech Stack](#tech-stack)
+- [Getting Started](#getting-started)
+- [Android Release Builds](#android-release-builds)
+- [Common Commands](#common-commands)
+- [Project Structure](#project-structure)
+- [Development Notes](#development-notes)
+- [Testing](#testing)
+- [Contributing](#contributing)
+- [License](#license)
+
+## Features
+
+- Local-only and offline: no account system, no cloud sync, no online bookstore. Books and reading data stay on the device.
+- Local book import: import `.epub` and `.txt` files through the system file picker and copy them into the app private directory.
+- Multi-file import: select and import multiple books at once, with metadata and covers completed after the initial import.
+- Library management: books outside a series are shown directly; series are displayed as book-like cards using the first book cover.
+- Series management: group different volumes of the same novel into one series; each book can belong to only one series.
+- Search: search by book title, series name, and author.
+- Paginated reading: EPUB is rendered with WebView and epub.js; TXT is rendered with WebView columns.
+- Page navigation: previous/next controls, left/right tap zones, and horizontal swipe gestures.
+- TXT chapter detection: recognizes common Chinese chapter headings; TXT files without headings are split into generated sections.
+- Reading progress: stores EPUB CFI, TXT character position, and whole-book percentage, then restores the last position when reopened.
+- Table of contents: open a left-side drawer while reading, view chapters, and jump to a selected chapter.
+- Reader settings: dark mode, font size, line height, background color, text color, and Noto Sans SC.
+- Language setting: Chinese and English.
+- Global dark mode: the library, series pages, detail pages, settings, and reader all follow the selected mode.
+
+## Download
+
+Android APKs are available from [GitHub Releases](https://github.com/RinSayX/nrepubreader/releases).
+
+Current releases provide ARM APKs:
+
+- `arm64-v8a`: for most modern Android phones.
+- `armeabi-v7a`: for 32-bit ARM devices.
+
+> iOS is currently intended for source builds and local debugging. No public iOS package is provided yet.
+
+## Screenshots
+
+Screenshots have not been added yet. Pull Requests are welcome.
+
+## Tech Stack
+
+- [Expo](https://expo.dev/) + Expo Dev Client
+- React Native
+- TypeScript
+- React Navigation
+- Zustand
+- SQLite local storage with `expo-sqlite`
+- File access with `expo-file-system` and `expo-document-picker`
+- EPUB rendering with `react-native-webview` and epub.js
+- TXT rendering with WebView columns
+- Jest tests
+
+## Getting Started
+
+### Requirements
+
+- Node.js
+- npm
+- Android Studio for Android development
+- macOS and Xcode for iOS development
+- A physical device, Android emulator, or iOS simulator
+
+### Install Dependencies
+
+```bash
+npm install
+```
+
+### Start the Development Server
+
+```bash
+npm start
+```
+
+This generates the local reader vendor script required by the WebView reader and starts Expo in Dev Client mode.
+
+### Run on Android
+
+```bash
+npm run android
+```
+
+### Run on iOS
+
+```bash
+npm run ios
+```
+
+## Android Release Builds
+
+Before building release APKs for the first time, generate a stable Android release keystore on your machine:
+
+```bash
+npm run setup:android-release-keystore
+```
+
+This command creates:
+
+- `android/app/readerepub-release.jks`
+- `android/keystore.properties`
+
+These files contain the release signing key and passwords. They are excluded by `.gitignore` and must not be committed. Keep an offline backup; all future Android releases must use the same keystore, otherwise users cannot install updates over existing installations.
+
+After the keystore is created, build ARM APKs:
+
+```bash
+npm run build:android:release-apks
+```
+
+Build outputs are written to the `dist/` directory.
+
+## Common Commands
+
+```bash
+npm start
+npm run android
+npm run ios
+npm run web
+npm run generate:reader-vendor
+npm run setup:android-release-keystore
+npm run build:android:release-apks
+npm run typecheck
+npm run lint
+npm test
+```
+
+## Project Structure
+
+```text
+.
+├── App.tsx
+├── app.json
+├── assets/
+├── scripts/
+├── src/
+│   ├── components/
+│   ├── db/
+│   ├── reader/
+│   ├── repositories/
+│   ├── screens/
+│   ├── services/
+│   ├── store/
+│   ├── theme/
+│   └── types.ts
+└── __tests__/
+```
+
+## Development Notes
+
+- The app is local-only and offline. There is currently no account system, network sync, online bookstore, DRM support, highlights, notes, or full-text search.
+- EPUB and TXT rendering happen inside WebView. React Native handles file import, local storage, navigation, reader settings, and persistence.
+- Imported books are copied into the app private directory. Uninstalling the app removes the local library and reading progress, but does not delete the original source files.
+- Android release APKs use a stable local keystore. Changing the keystore prevents upgrade installs over previous releases; users usually need to uninstall and reinstall, which removes data in the app private directory.
+- Android uses adaptive icons. `assets/icon.png` is the general app icon, and `assets/adaptive-icon.png` is the Android foreground icon with safe padding. The current icon was AI-assisted and curated by the maintainer.
+- The EPUB reader depends on JSZip and epub.js. Both are pinned npm dependencies, and `npm run generate:reader-vendor` generates the local reader vendor script from `node_modules`.
+
+## Testing
+
+Run all tests:
+
+```bash
+npm test
+```
+
+Run TypeScript checks:
+
+```bash
+npm run typecheck
+```
+
+Run ESLint:
+
+```bash
+npm run lint
+```
+
+## Contributing
+
+Issues and Pull Requests are welcome.
+
+For larger changes, please open an Issue first to discuss the direction. Keep changes focused, run checks before submitting, and avoid committing native build outputs, signing files, personal configuration, or imported book files.
+
+## License
+
+This project is licensed under the [MIT License](./LICENSE).
+
+Third-party dependencies, fonts, and visual assets are governed by their respective licenses. See [Third Party Notices](./THIRD_PARTY_NOTICES.md).
