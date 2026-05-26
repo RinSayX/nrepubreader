@@ -1,4 +1,4 @@
-# ReadEPUB English
+# ReadEPUB
 
 English | [简体中文](./README.md)
 
