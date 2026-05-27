@@ -2,7 +2,7 @@ import {
   encodeReaderMessage,
   parseWebReaderMessage,
   preferenceToReaderPayload
-} from "@/reader/messages";
+} from "@/features/reader/webview/messages";
 import type { ReaderPreference } from "@/types";
 
 describe("reader message helpers", () => {

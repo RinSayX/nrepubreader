@@ -5,7 +5,7 @@ const fs = require("fs");
 const path = require("path");
 
 const rootDir = path.resolve(__dirname, "..");
-const outputPath = path.join(rootDir, "src", "reader", "vendorScripts.ts");
+const outputPath = path.join(rootDir, "src", "features", "reader", "webview", "vendorScripts.ts");
 
 const vendors = [
   {

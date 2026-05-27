@@ -5,7 +5,7 @@ import {
   getVisibleTocItems,
   hasTocChildren,
   isCurrentChapter
-} from "@/reader/toc";
+} from "@/features/reader/webview/toc";
 import type { TocItem } from "@/types";
 
 const toc: TocItem[] = [

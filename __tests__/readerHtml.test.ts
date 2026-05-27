@@ -1,4 +1,4 @@
-import { READER_HTML } from "@/reader/readerHtml";
+import { READER_HTML } from "@/features/reader/webview/readerHtml";
 
 describe("reader HTML dependencies", () => {
   it("bundles JSZip before epub.js without loading reader scripts from a CDN", () => {

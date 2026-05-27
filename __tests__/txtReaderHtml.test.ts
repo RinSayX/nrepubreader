@@ -1,4 +1,4 @@
-import { TXT_READER_HTML } from "@/reader/txtReaderHtml";
+import { TXT_READER_HTML } from "@/features/reader/webview/txtReaderHtml";
 
 describe("TXT reader HTML", () => {
   it("supports TXT transfer through the shared reader bridge", () => {

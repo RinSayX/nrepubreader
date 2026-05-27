@@ -8,17 +8,17 @@ import { ActivityIndicator, Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { getTranslations } from "@/i18n";
-import { AboutScreen } from "@/screens/AboutScreen";
-import { BookDetailScreen } from "@/screens/BookDetailScreen";
-import { LibraryScreen } from "@/screens/LibraryScreen";
-import { ReaderScreen } from "@/screens/ReaderScreen";
-import { SeriesScreen } from "@/screens/SeriesScreen";
-import { SettingsScreen } from "@/screens/SettingsScreen";
+import type { RootStackParamList } from "@/app/navigation/types";
+import { BookDetailScreen } from "@/features/library/screens/BookDetailScreen";
+import { LibraryScreen } from "@/features/library/screens/LibraryScreen";
+import { useLibraryStore } from "@/features/library/store/libraryStore";
+import { ReaderScreen } from "@/features/reader/screens/ReaderScreen";
+import { SeriesScreen } from "@/features/series/screens/SeriesScreen";
+import { AboutScreen } from "@/features/settings/screens/AboutScreen";
+import { SettingsScreen } from "@/features/settings/screens/SettingsScreen";
 import { getAppTheme } from "@/theme/appTheme";
 import { useAppFonts } from "@/theme/fonts";
 import { colors } from "@/theme/tokens";
-import { useLibraryStore } from "@/store/libraryStore";
-import type { RootStackParamList } from "@/types";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 

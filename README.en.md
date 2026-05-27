@@ -155,15 +155,19 @@ npm test
 ├── assets/
 ├── scripts/
 ├── src/
+│   ├── app/
 │   ├── components/
 │   ├── db/
-│   ├── reader/
+│   ├── features/
+│   │   ├── library/
+│   │   ├── reader/
+│   │   ├── series/
+│   │   └── settings/
+│   ├── i18n/
 │   ├── repositories/
-│   ├── screens/
 │   ├── services/
-│   ├── store/
 │   ├── theme/
-│   └── types.ts
+│   └── types/
 └── __tests__/
 ```
 

@@ -1,4 +1,4 @@
-import { EPUBJS_SCRIPT, JSZIP_SCRIPT } from "@/reader/vendorScripts";
+import { EPUBJS_SCRIPT, JSZIP_SCRIPT } from "@/features/reader/webview/vendorScripts";
 
 export const READER_HTML = String.raw`
 <!doctype html>

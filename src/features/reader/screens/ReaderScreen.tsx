@@ -5,20 +5,21 @@ import { ActivityIndicator, Alert, Animated, FlatList, Modal, Pressable, StyleSh
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 
+import type { RootStackParamList } from "@/app/navigation/types";
 import { getTranslations } from "@/i18n";
-import { encodeReaderMessage, parseWebReaderMessage, preferenceToReaderPayload } from "@/reader/messages";
-import { READER_HTML } from "@/reader/readerHtml";
-import { TXT_READER_HTML } from "@/reader/txtReaderHtml";
+import { encodeReaderMessage, parseWebReaderMessage, preferenceToReaderPayload } from "@/features/reader/webview/messages";
+import { READER_HTML } from "@/features/reader/webview/readerHtml";
+import { TXT_READER_HTML } from "@/features/reader/webview/txtReaderHtml";
 import {
   getAncestorTocIdsForHref,
   getCollapsibleTocIds,
   getVisibleTocItems,
   hasTocChildren,
   isCurrentChapter
-} from "@/reader/toc";
+} from "@/features/reader/webview/toc";
 import { colors, spacing } from "@/theme/tokens";
-import { useLibraryStore } from "@/store/libraryStore";
-import type { Book, ReaderToWebMessage, RootStackParamList, TocItem } from "@/types";
+import { useLibraryStore } from "@/features/library/store/libraryStore";
+import type { Book, ReaderToWebMessage, TocItem } from "@/types";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Reader">;
 

@@ -5,7 +5,7 @@ import { getTranslations, languageOptions } from "@/i18n";
 import { fontOptions } from "@/theme/fonts";
 import { getAppTheme } from "@/theme/appTheme";
 import { colors, spacing } from "@/theme/tokens";
-import { useLibraryStore } from "@/store/libraryStore";
+import { useLibraryStore } from "@/features/library/store/libraryStore";
 
 const colorPresets = [
   { key: "paper", backgroundColor: "#fbf7ef", textColor: "#202124" },

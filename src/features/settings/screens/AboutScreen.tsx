@@ -5,7 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { getTranslations } from "@/i18n";
 import { getAppTheme } from "@/theme/appTheme";
 import { colors, spacing } from "@/theme/tokens";
-import { useLibraryStore } from "@/store/libraryStore";
+import { useLibraryStore } from "@/features/library/store/libraryStore";
 
 const REPOSITORY_URL = "https://github.com/RinSayX/nrepubreader";
 const LICENSE_URL = `${REPOSITORY_URL}/blob/main/LICENSE`;

@@ -3,14 +3,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, FlatList, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { BookCover } from "@/components/BookCover";
+import type { RootStackParamList } from "@/app/navigation/types";
+import { BookCover } from "@/features/library/components/BookCover";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { getTranslations } from "@/i18n";
 import { UNASSIGNED_SERIES_ID } from "@/repositories/seriesConstants";
 import { getAppTheme } from "@/theme/appTheme";
 import { colors, spacing } from "@/theme/tokens";
-import { useLibraryStore } from "@/store/libraryStore";
-import type { Book, RootStackParamList } from "@/types";
+import { useLibraryStore } from "@/features/library/store/libraryStore";
+import type { Book } from "@/types";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Series">;
 
