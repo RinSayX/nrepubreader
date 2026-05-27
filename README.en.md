@@ -6,6 +6,12 @@ ReadEPUB is a local-only, offline cross-platform EPUB/TXT reader built with Expo
 
 The project focuses on a lightweight and private reading experience: importing local EPUB/TXT files, managing a library and series, paginated reading, reading progress persistence, dark mode, Chinese font support, and Chinese/English UI.
 
+## AI Usage Statement
+
+This project uses AI tools to assist with parts of development, including code writing, debugging, documentation, and icon generation. All AI-generated or AI-assisted content is reviewed, modified, and approved by the project maintainer before being included in the repository.
+
+AI tools are used only as development assistants. Feature design, code maintenance, release decisions, and open source compliance remain the responsibility of the project maintainer.
+
 ## Table of Contents
 
 - [Features](#features)
