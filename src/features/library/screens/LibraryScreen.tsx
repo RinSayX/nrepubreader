@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, FlatList, Image, Modal, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import type { RootStackParamList } from "@/app/navigation/types";
+import type { RootStackParamList } from "@/navigation/types";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { getTranslations } from "@/i18n";
 import { getAppTheme } from "@/theme/appTheme";

@@ -8,7 +8,7 @@ import { ActivityIndicator, Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { getTranslations } from "@/i18n";
-import type { RootStackParamList } from "@/app/navigation/types";
+import type { RootStackParamList } from "@/navigation/types";
 import { BookDetailScreen } from "@/features/library/screens/BookDetailScreen";
 import { LibraryScreen } from "@/features/library/screens/LibraryScreen";
 import { useLibraryStore } from "@/features/library/store/libraryStore";

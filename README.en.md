@@ -155,7 +155,7 @@ npm test
 ├── assets/
 ├── scripts/
 ├── src/
-│   ├── app/
+│   ├── navigation/
 │   ├── components/
 │   ├── db/
 │   ├── features/

@@ -5,7 +5,7 @@ import { ActivityIndicator, Alert, Animated, FlatList, Modal, Pressable, StyleSh
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 
-import type { RootStackParamList } from "@/app/navigation/types";
+import type { RootStackParamList } from "@/navigation/types";
 import { getTranslations } from "@/i18n";
 import { encodeReaderMessage, parseWebReaderMessage, preferenceToReaderPayload } from "@/features/reader/webview/messages";
 import { READER_HTML } from "@/features/reader/webview/readerHtml";
