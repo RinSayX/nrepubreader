@@ -1,4 +1,5 @@
-import { ScrollView, StyleSheet, Switch, Text, Pressable, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Alert, ScrollView, StyleSheet, Switch, Text, TextInput, Pressable, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { getTranslations, languageOptions } from "@/i18n";
@@ -6,6 +7,7 @@ import { fontOptions } from "@/theme/fonts";
 import { getAppTheme } from "@/theme/appTheme";
 import { colors, spacing } from "@/theme/tokens";
 import { useLibraryStore } from "@/features/library/store/libraryStore";
+import { MAX_FONT_SIZE, MIN_FONT_SIZE, normalizeFontSize } from "@/features/settings/fontSize";
 
 const colorPresets = [
   { key: "paper", backgroundColor: "#fbf7ef", textColor: "#202124" },
@@ -19,10 +21,28 @@ export function SettingsScreen() {
   const savePreference = useLibraryStore((state) => state.savePreference);
   const theme = getAppTheme(preference);
   const t = getTranslations(preference.language);
+  const [fontSizeInput, setFontSizeInput] = useState(String(preference.fontSize));
+
+  useEffect(() => {
+    setFontSizeInput(String(preference.fontSize));
+  }, [preference.fontSize]);
+
+  function updateFontSize(value: number) {
+    const fontSize = normalizeFontSize(value, preference.fontSize);
+    setFontSizeInput(String(fontSize));
+    if (fontSize !== preference.fontSize) {
+      void savePreference({ ...preference, fontSize }).catch(() => {
+        setFontSizeInput(String(preference.fontSize));
+        Alert.alert(t.common.operationFailed);
+      });
+    }
+  }
+
+  const displayedFontSize = fontSizeInput ? normalizeFontSize(Number(fontSizeInput), preference.fontSize) : preference.fontSize;
 
   return (
     <SafeAreaView edges={["bottom"]} style={[styles.root, { backgroundColor: theme.background }]}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         <Text style={[styles.sectionTitle, { color: theme.text }]}>{t.settings.language}</Text>
         <View style={styles.optionGrid}>
           {languageOptions.map((language) => {
@@ -85,19 +105,35 @@ export function SettingsScreen() {
 
         <Text style={[styles.sectionTitle, { color: theme.text }]}>{t.settings.fontSize}</Text>
         <View style={styles.stepperRow}>
-          {[16, 18, 20, 22, 24].map((size) => (
-            <Pressable
-              key={size}
-              style={[
-                styles.sizeButton,
-                { backgroundColor: theme.panel, borderColor: theme.border },
-                preference.fontSize === size && styles.selectedOption
-              ]}
-              onPress={() => void savePreference({ ...preference, fontSize: size })}
-            >
-              <Text style={[styles.optionText, { color: theme.text }]}>{size}</Text>
-            </Pressable>
-          ))}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t.settings.decreaseFontSize}
+            disabled={displayedFontSize <= MIN_FONT_SIZE}
+            style={[styles.sizeButton, { backgroundColor: theme.panel, borderColor: theme.border }, displayedFontSize <= MIN_FONT_SIZE && styles.disabledButton]}
+            onPress={() => updateFontSize(displayedFontSize - 1)}
+          >
+            <Text style={[styles.stepperSymbol, { color: theme.text }]}>-</Text>
+          </Pressable>
+          <TextInput
+            accessibilityLabel={t.settings.fontSize}
+            style={[styles.fontSizeInput, { color: theme.text, backgroundColor: theme.panel, borderColor: theme.border }]}
+            value={fontSizeInput}
+            onChangeText={(value) => setFontSizeInput(value.replace(/\D/g, ""))}
+            onEndEditing={() => updateFontSize(fontSizeInput ? Number(fontSizeInput) : preference.fontSize)}
+            keyboardType="number-pad"
+            returnKeyType="done"
+            maxLength={2}
+            selectTextOnFocus
+          />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t.settings.increaseFontSize}
+            disabled={displayedFontSize >= MAX_FONT_SIZE}
+            style={[styles.sizeButton, { backgroundColor: theme.panel, borderColor: theme.border }, displayedFontSize >= MAX_FONT_SIZE && styles.disabledButton]}
+            onPress={() => updateFontSize(displayedFontSize + 1)}
+          >
+            <Text style={[styles.stepperSymbol, { color: theme.text }]}>+</Text>
+          </Pressable>
         </View>
 
         <Text style={[styles.sectionTitle, { color: theme.text }]}>{t.settings.lineHeight}</Text>
@@ -218,6 +254,23 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff",
     borderColor: colors.border,
     borderWidth: StyleSheet.hairlineWidth
+  },
+  stepperSymbol: {
+    fontSize: 24,
+    fontWeight: "600"
+  },
+  fontSizeInput: {
+    width: 72,
+    height: 44,
+    borderRadius: 6,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 0,
+    textAlign: "center",
+    fontSize: 20
+  },
+  disabledButton: {
+    opacity: 0.4
   },
   colorOption: {
     minWidth: "47%",

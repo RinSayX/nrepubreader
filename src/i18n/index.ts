@@ -36,6 +36,8 @@ const translations = {
       nightModeHint: "同步应用外壳和阅读页颜色",
       font: "字体",
       fontSize: "字号",
+      decreaseFontSize: "减小字号",
+      increaseFontSize: "增大字号",
       lineHeight: "行高",
       justifyText: "两端对齐",
       colors: "背景与文字",
@@ -102,6 +104,7 @@ const translations = {
       join: "加入"
     },
     reader: {
+      menu: "阅读菜单",
       back: "返回",
       toc: "目录",
       settings: "设置",
@@ -166,6 +169,8 @@ const translations = {
       nightModeHint: "Apply colors to the app shell and reader",
       font: "Font",
       fontSize: "Font size",
+      decreaseFontSize: "Decrease font size",
+      increaseFontSize: "Increase font size",
       lineHeight: "Line height",
       justifyText: "Justify text",
       colors: "Background and text",
@@ -233,6 +238,7 @@ const translations = {
       join: "Add"
     },
     reader: {
+      menu: "Reading menu",
       back: "Back",
       toc: "Contents",
       settings: "Settings",

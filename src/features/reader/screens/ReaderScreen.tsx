@@ -1,7 +1,8 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { useFocusEffect } from "@react-navigation/native";
 import * as FileSystem from "expo-file-system/legacy";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Animated, FlatList, Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { ActivityIndicator, Alert, Animated, BackHandler, FlatList, Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import type { ViewToken } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
@@ -11,6 +12,8 @@ import { getTranslations } from "@/i18n";
 import { encodeReaderMessage, parseWebReaderMessage, preferenceToReaderPayload } from "@/features/reader/webview/messages";
 import { READER_HTML } from "@/features/reader/webview/readerHtml";
 import { TXT_READER_HTML } from "@/features/reader/webview/txtReaderHtml";
+import { ReaderGestureOverlay } from "@/features/reader/components/ReaderGestureOverlay";
+import type { ReaderGestureAction } from "@/features/reader/gestures";
 import {
   getAncestorTocIdsForHref,
   getCollapsibleTocIds,
@@ -24,9 +27,6 @@ import type { Book, ReaderToWebMessage, TocItem } from "@/types";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Reader">;
 
-const EDGE_GESTURE_GUARD = 44;
-const PAGE_TAP_LEFT_RATIO = 0.36;
-const PAGE_TAP_RIGHT_RATIO = 0.64;
 const BOOK_TRANSFER_CHUNK_SIZE = 128 * 1024;
 const BOOK_TRANSFER_WINDOW_SIZE = 12;
 const BOOK_TRANSFER_TIMEOUT_MS = 45000;
@@ -44,10 +44,6 @@ type ActiveBookTransfer = {
   timeoutId: ReturnType<typeof setTimeout> | null;
 };
 
-function formatBookProgress(percentage: number) {
-  return `${Math.round(Math.max(0, Math.min(1, percentage)) * 100)}%`;
-}
-
 export function ReaderScreen({ navigation, route }: Props) {
   const { bookId } = route.params;
   const { width } = useWindowDimensions();
@@ -56,6 +52,7 @@ export function ReaderScreen({ navigation, route }: Props) {
   const hasSentLoadRef = useRef(false);
   const activeTransferRef = useRef<ActiveBookTransfer | null>(null);
   const tocDrawerProgress = useRef(new Animated.Value(0)).current;
+  const menuProgress = useRef(new Animated.Value(0)).current;
   const tocListRef = useRef<FlatList<TocItem>>(null);
   const pendingTocScrollItemIdRef = useRef<string | null>(null);
   const pendingTocScrollIndexRef = useRef<number | null>(null);
@@ -70,12 +67,12 @@ export function ReaderScreen({ navigation, route }: Props) {
   const [initialCfi, setInitialCfi] = useState<string | null>(null);
   const [initialPosition, setInitialPosition] = useState<number | null>(null);
   const [webReady, setWebReady] = useState(false);
-  const [progressLabel, setProgressLabel] = useState(formatBookProgress(0));
   const [toc, setToc] = useState<TocItem[]>([]);
   const [collapsedTocIds, setCollapsedTocIds] = useState<Set<string>>(new Set());
   const [currentChapterHref, setCurrentChapterHref] = useState<string | null>(null);
   const [tocVisible, setTocVisible] = useState(false);
   const [tocPositioning, setTocPositioning] = useState(false);
+  const [menuVisible, setMenuVisible] = useState(false);
   const isDark = preference.themeMode === "dark";
   const t = getTranslations(preference.language);
   const visibleToc = useMemo(() => getVisibleTocItems(toc, collapsedTocIds), [collapsedTocIds, toc]);
@@ -84,14 +81,42 @@ export function ReaderScreen({ navigation, route }: Props) {
     inputRange: [0, 1],
     outputRange: [-width, 0]
   });
-  const leftTapZoneWidth = Math.max(0, width * PAGE_TAP_LEFT_RATIO - EDGE_GESTURE_GUARD);
-  const rightTapZoneWidth = Math.max(0, width * (1 - PAGE_TAP_RIGHT_RATIO) - EDGE_GESTURE_GUARD);
   const readerChromeStyle = { backgroundColor: preference.backgroundColor };
   const readerChromeTextStyle = { color: preference.textColor };
 
   const send = useCallback((message: ReaderToWebMessage) => {
     webRef.current?.injectJavaScript(`window.readerBridge && window.readerBridge.receive(${encodeReaderMessage(message)}); true;`);
   }, []);
+
+  const handleReaderAction = useCallback((action: ReaderGestureAction) => {
+    if (action === "menu") {
+      setMenuVisible((visible) => !visible);
+    } else {
+      setMenuVisible(false);
+      send({ type: action === "previous" ? "PREV_PAGE" : "NEXT_PAGE" });
+    }
+  }, [send]);
+
+  useEffect(() => {
+    const animation = Animated.timing(menuProgress, {
+      toValue: menuVisible ? 1 : 0,
+      duration: 180,
+      useNativeDriver: true
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [menuProgress, menuVisible]);
+
+  useFocusEffect(useCallback(() => {
+    if (!menuVisible) {
+      return;
+    }
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      setMenuVisible(false);
+      return true;
+    });
+    return () => subscription.remove();
+  }, [menuVisible]));
 
   const clearTransferTimeout = useCallback((transfer: ActiveBookTransfer) => {
     if (transfer.timeoutId) {
@@ -211,17 +236,13 @@ export function ReaderScreen({ navigation, route }: Props) {
     hasSentLoadRef.current = false;
     setWebReady(false);
     setToc([]);
+    setMenuVisible(false);
     setCollapsedTocIds(new Set());
     setCurrentChapterHref(null);
     void Promise.all([getBook(bookId), getProgress(bookId)]).then(([nextBook, progress]) => {
       setBook(nextBook);
       setInitialCfi(progress?.cfi ?? null);
       setInitialPosition(progress?.position ?? null);
-      if (progress) {
-        setProgressLabel(formatBookProgress(progress.percentage));
-      } else {
-        setProgressLabel(formatBookProgress(0));
-      }
     });
   }, [bookId, getBook, getProgress]);
 
@@ -255,6 +276,7 @@ export function ReaderScreen({ navigation, route }: Props) {
   }
 
   function openToc() {
+    setMenuVisible(false);
     const nextCollapsedIds = new Set(collapsedTocIds);
     getAncestorTocIdsForHref(toc, currentChapterHref).forEach((id) => nextCollapsedIds.delete(id));
     const nextVisibleToc = getVisibleTocItems(toc, nextCollapsedIds);
@@ -375,21 +397,6 @@ export function ReaderScreen({ navigation, route }: Props) {
 
   return (
     <SafeAreaView edges={["top", "bottom"]} style={[styles.root, { backgroundColor: preference.backgroundColor }]}>
-      <View style={[styles.topBar, readerChromeStyle]}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.iconButton}>
-          <Text style={[styles.iconText, readerChromeTextStyle]}>{t.reader.back}</Text>
-        </Pressable>
-        <Text numberOfLines={1} style={[styles.readerTitle, readerChromeTextStyle]}>
-          {book.title}
-        </Text>
-        <Pressable onPress={openToc} style={styles.iconButton}>
-          <Text style={[styles.iconText, readerChromeTextStyle]}>{t.reader.toc}</Text>
-        </Pressable>
-        <Pressable onPress={() => navigation.navigate("Settings")} style={styles.iconButton}>
-          <Text style={[styles.iconText, readerChromeTextStyle]}>{t.reader.settings}</Text>
-        </Pressable>
-      </View>
-
       <View style={styles.readerSurface}>
         <WebView
           ref={webRef}
@@ -433,7 +440,6 @@ export function ReaderScreen({ navigation, route }: Props) {
 
               const percentage = Math.max(0, Math.min(1, message.payload.percentage));
               setCurrentChapterHref(message.payload.chapterHref);
-              setProgressLabel(formatBookProgress(percentage));
               void saveProgress({
                 bookId: message.payload.bookId,
                 chapterHref: message.payload.chapterHref,
@@ -449,32 +455,42 @@ export function ReaderScreen({ navigation, route }: Props) {
           }}
           style={styles.webview}
         />
-        <View pointerEvents="box-none" style={styles.tapOverlay}>
-          <Pressable
-            style={[styles.pageTapZone, { left: EDGE_GESTURE_GUARD, width: leftTapZoneWidth }]}
-            onPress={() => send({ type: "PREV_PAGE" })}
-          />
-          <Pressable
-            style={[styles.pageTapZone, { right: EDGE_GESTURE_GUARD, width: rightTapZoneWidth }]}
-            onPress={() => send({ type: "NEXT_PAGE" })}
-          />
-        </View>
-      </View>
-
-      <View style={[styles.bottomBar, readerChromeStyle]}>
-        <View style={styles.bottomSlot}>
-          <Pressable style={styles.pageButton} onPress={() => send({ type: "PREV_PAGE" })}>
-            <Text style={[styles.pageText, readerChromeTextStyle]}>{t.reader.prevPage}</Text>
+        <ReaderGestureOverlay
+          onAction={handleReaderAction}
+          menuLabel={t.reader.menu}
+          previousLabel={t.reader.prevPage}
+          nextLabel={t.reader.nextPage}
+        />
+        <Animated.View
+          pointerEvents={menuVisible ? "auto" : "none"}
+          accessibilityElementsHidden={!menuVisible}
+          importantForAccessibility={menuVisible ? "auto" : "no-hide-descendants"}
+          style={[
+            styles.topBar,
+            readerChromeStyle,
+            {
+              opacity: menuProgress,
+              transform: [{ translateY: menuProgress.interpolate({ inputRange: [0, 1], outputRange: [-64, 0] }) }]
+            }
+          ]}
+        >
+          <Pressable accessibilityRole="button" onPress={() => navigation.goBack()} style={styles.iconButton}>
+            <Text style={[styles.iconText, readerChromeTextStyle]}>{t.reader.back}</Text>
           </Pressable>
-        </View>
-        <View style={styles.progressSlot}>
-          <Text style={[styles.progress, readerChromeTextStyle]}>{progressLabel}</Text>
-        </View>
-        <View style={[styles.bottomSlot, styles.rightSlot]}>
-          <Pressable style={styles.pageButton} onPress={() => send({ type: "NEXT_PAGE" })}>
-            <Text style={[styles.pageText, readerChromeTextStyle]}>{t.reader.nextPage}</Text>
+          <Text numberOfLines={1} style={[styles.readerTitle, readerChromeTextStyle]}>
+            {book.title}
+          </Text>
+          <Pressable accessibilityRole="button" onPress={openToc} style={styles.iconButton}>
+            <Text style={[styles.iconText, readerChromeTextStyle]}>{t.reader.toc}</Text>
           </Pressable>
-        </View>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => { setMenuVisible(false); navigation.navigate("Settings"); }}
+            style={styles.iconButton}
+          >
+            <Text style={[styles.iconText, readerChromeTextStyle]}>{t.reader.settings}</Text>
+          </Pressable>
+        </Animated.View>
       </View>
 
       <Modal
@@ -587,12 +603,19 @@ const styles = StyleSheet.create({
     flex: 1
   },
   topBar: {
-    minHeight: 48,
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 2,
+    elevation: 4,
+    minHeight: 52,
     paddingHorizontal: spacing.sm,
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    backgroundColor: "rgba(251,247,239,0.96)"
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border
   },
   iconButton: {
     minWidth: 56,
@@ -618,44 +641,6 @@ const styles = StyleSheet.create({
   },
   readerSurface: {
     flex: 1
-  },
-  tapOverlay: {
-    ...StyleSheet.absoluteFillObject
-  },
-  pageTapZone: {
-    position: "absolute",
-    top: 0,
-    bottom: 0
-  },
-  bottomBar: {
-    minHeight: 54,
-    paddingHorizontal: spacing.md,
-    flexDirection: "row",
-    alignItems: "center"
-  },
-  bottomSlot: {
-    flex: 1,
-    alignItems: "flex-start"
-  },
-  rightSlot: {
-    alignItems: "flex-end"
-  },
-  progressSlot: {
-    flex: 1,
-    alignItems: "center"
-  },
-  pageButton: {
-    width: 88,
-    minHeight: 40,
-    alignItems: "center",
-    justifyContent: "center"
-  },
-  pageText: {
-    fontWeight: "800"
-  },
-  progress: {
-    color: colors.ink,
-    fontWeight: "800"
   },
   tocScreen: {
     flex: 1,
