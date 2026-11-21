@@ -117,6 +117,15 @@ export function SettingsScreen() {
           ))}
         </View>
 
+        <View style={styles.row}>
+          <Text style={[styles.label, { color: theme.text }]}>{t.settings.justifyText}</Text>
+          <Switch
+            accessibilityLabel={t.settings.justifyText}
+            value={preference.textAlign === "justify"}
+            onValueChange={(value) => void savePreference({ ...preference, textAlign: value ? "justify" : "left" })}
+          />
+        </View>
+
         <Text style={[styles.sectionTitle, { color: theme.text }]}>{t.settings.colors}</Text>
         <View style={styles.optionGrid}>
           {colorPresets.map((preset) => {

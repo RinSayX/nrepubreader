@@ -125,6 +125,7 @@ export const READER_HTML = String.raw`
             "background": theme.themeMode === "dark" ? "#375653" : "#d8ecea"
           }
         });
+        state.rendition.getContents().forEach((contents) => applyParagraphAlignment(contents.document, font.textAlign));
       }
 
       function base64ToArrayBuffer(base64) {
@@ -254,7 +255,69 @@ export const READER_HTML = String.raw`
         }, { passive: true });
       }
 
-      function installRenditionSwipeNavigation() {
+      function getProseParagraphs(doc) {
+        if (!doc?.body || !doc.defaultView) {
+          return [];
+        }
+
+        const paragraphs = [];
+        const excludedContainers = "nav, header, h1, h2, h3, h4, h5, h6, figure, figcaption, pre, blockquote, ul, ol, table, aside, [role='heading'], [role='doc-toc']";
+        const nestedBlocks = "p, div, h1, h2, h3, h4, h5, h6, ul, ol, table, pre, blockquote, figure";
+        doc.body.querySelectorAll("p, div").forEach((paragraph) => {
+          const text = paragraph.textContent || "";
+          if (!text.trim() || paragraph.closest(excludedContainers)) {
+            return;
+          }
+          if (paragraph.querySelector(nestedBlocks + ", img, svg, video, audio, iframe")) {
+            return;
+          }
+          const identity = (paragraph.getAttribute("class") || "") + " " + (paragraph.id || "");
+          if (/(?:^|[\s_-])(?:title|subtitle|heading|chapter[-_]?title|volume[-_]?title|toc|cover)(?:$|[\s_-])/i.test(identity)) {
+            return;
+          }
+          for (let parent = paragraph; parent; parent = parent.parentElement) {
+            if (/(?:^|\s)(?:toc|cover|titlepage|landmarks|page-list|footnote|endnote)(?:$|\s)/.test(parent.getAttribute("epub:type") || "")) {
+              return;
+            }
+          }
+
+          const style = doc.defaultView.getComputedStyle(paragraph);
+          if (/center|right|end/.test(style.textAlign)) {
+            return;
+          }
+          paragraphs.push({ paragraph, style });
+        });
+        return paragraphs;
+      }
+
+      function applyAutomaticParagraphIndentation(doc) {
+        const paragraphs = getProseParagraphs(doc).filter(({ paragraph, style }) => {
+          const text = paragraph.textContent || "";
+          if (!/[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/.test(text) || (style.textIndent && parseFloat(style.textIndent) !== 0)) {
+            return false;
+          }
+          if (/^[\u3000\u00a0\u2002\u2003]/.test(text.replace(/^[\t\r\n ]+/, ""))) {
+            return false;
+          }
+          if (/^(?:pre|pre-wrap|break-spaces)$/.test(style.whiteSpace) && /^[\t ]/.test(text.replace(/^[\r\n]+/, ""))) {
+            return false;
+          }
+          return true;
+        });
+
+        // Batch style writes after measurement; preserve text nodes used by EPUB CFIs.
+        paragraphs.forEach(({ paragraph }) => paragraph.style.setProperty("text-indent", "2em", "important"));
+      }
+
+      function applyParagraphAlignment(doc, textAlign) {
+        const alignment = textAlign === "left" ? "left" : "justify";
+        getProseParagraphs(doc).forEach(({ paragraph }) => {
+          paragraph.style.setProperty("text-align", alignment, "important");
+          paragraph.style.setProperty("text-align-last", "start", "important");
+        });
+      }
+
+      function installRenditionContentHooks() {
         if (!state.rendition) {
           return;
         }
@@ -262,6 +325,8 @@ export const READER_HTML = String.raw`
         installSwipeNavigation(document);
         state.rendition.hooks.content.register((contents) => {
           installSwipeNavigation(contents.document);
+          applyAutomaticParagraphIndentation(contents.document);
+          applyParagraphAlignment(contents.document, state.font?.textAlign);
         });
       }
 
@@ -291,7 +356,7 @@ export const READER_HTML = String.raw`
             spread: "none",
             manager: "default"
           });
-          installRenditionSwipeNavigation();
+          installRenditionContentHooks();
 
           applySettings(payload.theme, payload.font);
 

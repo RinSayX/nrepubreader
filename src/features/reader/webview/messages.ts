@@ -26,7 +26,8 @@ export function preferenceToReaderPayload(preference: ReaderPreference) {
     font: {
       fontFamily: preference.fontFamily,
       fontSize: preference.fontSize,
-      lineHeight: preference.lineHeight
+      lineHeight: preference.lineHeight,
+      textAlign: preference.textAlign
     }
   };
 }

@@ -43,6 +43,7 @@ describe("reader message helpers", () => {
       fontFamily: "Noto Serif SC",
       fontSize: 20,
       lineHeight: 1.8,
+      textAlign: "justify",
       backgroundColor: "#151515",
       textColor: "#ece7dd"
     };
@@ -56,7 +57,8 @@ describe("reader message helpers", () => {
       font: {
         fontFamily: "Noto Serif SC",
         fontSize: 20,
-        lineHeight: 1.8
+        lineHeight: 1.8,
+        textAlign: "justify"
       }
     });
   });

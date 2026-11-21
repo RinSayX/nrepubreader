@@ -37,6 +37,7 @@ const translations = {
       font: "字体",
       fontSize: "字号",
       lineHeight: "行高",
+      justifyText: "两端对齐",
       colors: "背景与文字",
       presets: {
         paper: "纸张",
@@ -166,6 +167,7 @@ const translations = {
       font: "Font",
       fontSize: "Font size",
       lineHeight: "Line height",
+      justifyText: "Justify text",
       colors: "Background and text",
       presets: {
         paper: "Paper",

@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS reader_preferences (
   fontFamily TEXT NOT NULL,
   fontSize INTEGER NOT NULL,
   lineHeight REAL NOT NULL,
+  textAlign TEXT NOT NULL DEFAULT 'justify',
   backgroundColor TEXT NOT NULL,
   textColor TEXT NOT NULL,
   updatedAt TEXT NOT NULL

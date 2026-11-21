@@ -55,6 +55,7 @@ export type ReaderPreference = {
   fontFamily: string;
   fontSize: number;
   lineHeight: number;
+  textAlign: "justify" | "left";
   backgroundColor: string;
   textColor: string;
 };
@@ -76,6 +77,7 @@ export type ReaderFontPayload = {
   fontFamily: string;
   fontSize: number;
   lineHeight: number;
+  textAlign: ReaderPreference["textAlign"];
 };
 
 export type ReaderToWebMessage =

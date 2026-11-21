@@ -51,6 +51,7 @@ export const TXT_READER_HTML = String.raw`
         font-size: 1.18em;
         line-height: 1.45;
         font-weight: 800;
+        text-align: left;
         white-space: pre-wrap;
         overflow-wrap: break-word;
       }
@@ -325,6 +326,8 @@ export const TXT_READER_HTML = String.raw`
         content.style.fontFamily = fontFamily;
         content.style.fontSize = font.fontSize + "px";
         content.style.lineHeight = font.lineHeight;
+        content.style.textAlign = font.textAlign === "left" ? "left" : "justify";
+        content.style.textAlignLast = "start";
 
         const measure = document.getElementById("measure");
         measure.style.background = theme.backgroundColor;
@@ -332,6 +335,8 @@ export const TXT_READER_HTML = String.raw`
         measure.style.fontFamily = fontFamily;
         measure.style.fontSize = font.fontSize + "px";
         measure.style.lineHeight = font.lineHeight;
+        measure.style.textAlign = content.style.textAlign;
+        measure.style.textAlignLast = "start";
 
         if (state.bookId && state.text) {
           renderChapterAtPosition(currentPosition());

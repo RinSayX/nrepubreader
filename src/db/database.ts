@@ -13,6 +13,7 @@ export async function getDatabase() {
       await ensureColumn(db, "books", "format", "TEXT NOT NULL DEFAULT 'epub'");
       await ensureColumn(db, "reading_progress", "position", "INTEGER");
       await ensureColumn(db, "reader_preferences", "language", "TEXT NOT NULL DEFAULT 'zh-CN'");
+      await ensureColumn(db, "reader_preferences", "textAlign", "TEXT NOT NULL DEFAULT 'justify'");
       return db;
     });
   }

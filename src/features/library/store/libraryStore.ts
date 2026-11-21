@@ -55,6 +55,7 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
     fontFamily: "System",
     fontSize: 18,
     lineHeight: 1.65,
+    textAlign: "justify",
     backgroundColor: "#fbf7ef",
     textColor: "#202124"
   },

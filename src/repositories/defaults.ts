@@ -6,6 +6,7 @@ export const DEFAULT_READER_PREFERENCE: ReaderPreference = {
   fontFamily: "System",
   fontSize: 18,
   lineHeight: 1.65,
+  textAlign: "justify",
   backgroundColor: "#fbf7ef",
   textColor: "#202124"
 };
