@@ -59,6 +59,7 @@ export function ReaderScreen({ navigation, route }: Props) {
   const tocListRef = useRef<FlatList<TocItem>>(null);
   const pendingTocScrollItemIdRef = useRef<string | null>(null);
   const pendingTocScrollIndexRef = useRef<number | null>(null);
+  const tocTargetVisibleRef = useRef(false);
   const tocScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const preference = useLibraryStore((state) => state.preference);
   const getBook = useLibraryStore((state) => state.getBook);
@@ -74,6 +75,7 @@ export function ReaderScreen({ navigation, route }: Props) {
   const [collapsedTocIds, setCollapsedTocIds] = useState<Set<string>>(new Set());
   const [currentChapterHref, setCurrentChapterHref] = useState<string | null>(null);
   const [tocVisible, setTocVisible] = useState(false);
+  const [tocPositioning, setTocPositioning] = useState(false);
   const isDark = preference.themeMode === "dark";
   const t = getTranslations(preference.language);
   const visibleToc = useMemo(() => getVisibleTocItems(toc, collapsedTocIds), [collapsedTocIds, toc]);
@@ -254,19 +256,16 @@ export function ReaderScreen({ navigation, route }: Props) {
   }
 
   function openToc() {
-    if (currentChapterHref) {
-      pendingTocScrollItemIdRef.current = toc.find((item) => isCurrentChapter(item.href, currentChapterHref))?.id ?? null;
-      pendingTocScrollIndexRef.current = null;
-      const ancestorIds = getAncestorTocIdsForHref(toc, currentChapterHref);
-      setCollapsedTocIds((current) => {
-        const next = new Set(current);
-        ancestorIds.forEach((id) => next.delete(id));
-        return next;
-      });
-    } else {
-      pendingTocScrollItemIdRef.current = null;
-      pendingTocScrollIndexRef.current = null;
-    }
+    const nextCollapsedIds = new Set(collapsedTocIds);
+    getAncestorTocIdsForHref(toc, currentChapterHref).forEach((id) => nextCollapsedIds.delete(id));
+    const nextVisibleToc = getVisibleTocItems(toc, nextCollapsedIds);
+    const targetIndex = nextVisibleToc.findIndex((item) => isCurrentChapter(item.href, currentChapterHref));
+    pendingTocScrollItemIdRef.current = nextVisibleToc[targetIndex]?.id ?? null;
+    pendingTocScrollIndexRef.current = targetIndex >= 0 ? targetIndex : null;
+    tocTargetVisibleRef.current = false;
+    setCollapsedTocIds(nextCollapsedIds);
+    setTocPositioning(targetIndex >= 0);
+    tocDrawerProgress.setValue(0);
     setTocVisible(true);
   }
 
@@ -295,7 +294,10 @@ export function ReaderScreen({ navigation, route }: Props) {
     }
   }, [tocDrawerProgress, tocVisible]);
 
-  const scheduleTocScroll = useCallback((finish = false) => {
+  const scheduleTocScroll = useCallback(() => {
+    if (pendingTocScrollIndexRef.current === null) {
+      return;
+    }
     if (tocScrollTimerRef.current) {
       clearTimeout(tocScrollTimerRef.current);
     }
@@ -305,6 +307,7 @@ export function ReaderScreen({ navigation, route }: Props) {
       if (targetIndex === null) {
         return;
       }
+      const finish = tocTargetVisibleRef.current;
       if (finish) {
         pendingTocScrollItemIdRef.current = null;
         pendingTocScrollIndexRef.current = null;
@@ -314,14 +317,21 @@ export function ReaderScreen({ navigation, route }: Props) {
         animated: false,
         viewPosition: 0.5
       });
+      if (finish && pendingTocScrollIndexRef.current === null) {
+        // Let the native list apply the final offset before revealing its rows.
+        tocScrollTimerRef.current = setTimeout(() => {
+          tocScrollTimerRef.current = null;
+          setTocPositioning(false);
+        }, 80);
+      }
     }, 80);
   }, []);
 
   const onTocViewableItemsChanged = useCallback(({ viewableItems }: { viewableItems: ViewToken<TocItem>[] }) => {
     const targetIndex = pendingTocScrollIndexRef.current;
     if (targetIndex !== null && viewableItems.some((item) => item.index === targetIndex)) {
-      // Center again after the target row's wrapped title has been measured.
-      scheduleTocScroll(true);
+      tocTargetVisibleRef.current = true;
+      scheduleTocScroll();
     }
   }, [scheduleTocScroll]);
 
@@ -500,60 +510,72 @@ export function ReaderScreen({ navigation, route }: Props) {
             </View>
 
             <View style={styles.tocTools}>
-              <Pressable style={styles.toolButton} onPress={() => setCollapsedTocIds(new Set(collapsibleTocIds))}>
+              <Pressable disabled={tocPositioning} style={styles.toolButton} onPress={() => setCollapsedTocIds(new Set(collapsibleTocIds))}>
                 <Text style={styles.toolButtonText}>{t.reader.collapseAll}</Text>
               </Pressable>
-              <Pressable style={styles.toolButton} onPress={() => setCollapsedTocIds(new Set())}>
+              <Pressable disabled={tocPositioning} style={styles.toolButton} onPress={() => setCollapsedTocIds(new Set())}>
                 <Text style={styles.toolButtonText}>{t.reader.expandAll}</Text>
               </Pressable>
             </View>
 
-            <FlatList
-              ref={tocListRef}
-              style={styles.tocList}
-              data={visibleToc}
-              keyExtractor={(item) => item.id}
-              onLayout={() => scheduleTocScroll()}
-              onViewableItemsChanged={onTocViewableItemsChanged}
-              onScrollBeginDrag={() => {
-                pendingTocScrollItemIdRef.current = null;
-                pendingTocScrollIndexRef.current = null;
-              }}
-              onScrollToIndexFailed={(info) => {
-                pendingTocScrollIndexRef.current = info.index;
-                tocListRef.current?.scrollToOffset({
-                  offset: Math.max(0, info.index * info.averageItemLength),
-                  animated: false
-                });
-                scheduleTocScroll();
-              }}
-              ListEmptyComponent={<Text style={[styles.emptyToc, isDark && styles.darkMutedText]}>{t.reader.emptyToc}</Text>}
-              renderItem={({ item }) => {
-                const active = isCurrentChapter(item.href, currentChapterHref);
-                const tocIndex = toc.findIndex((tocItem) => tocItem.id === item.id);
-                const hasChildren = hasTocChildren(toc, tocIndex);
-                const collapsed = collapsedTocIds.has(item.id);
-                return (
-                  <Pressable
-                    style={[styles.tocRow, active && styles.activeTocRow, { paddingLeft: spacing.lg + Math.min(item.level * 18, width * 0.2) }]}
-                    onPress={() => jumpToChapter(item)}
-                  >
+            <View style={styles.tocList}>
+              <FlatList
+                ref={tocListRef}
+                style={[styles.tocList, tocPositioning && styles.positioningTocList]}
+                pointerEvents={tocPositioning ? "none" : "auto"}
+                accessibilityElementsHidden={tocPositioning}
+                importantForAccessibility={tocPositioning ? "no-hide-descendants" : "auto"}
+                data={visibleToc}
+                keyExtractor={(item) => item.id}
+                onLayout={() => scheduleTocScroll()}
+                onViewableItemsChanged={onTocViewableItemsChanged}
+                onScrollBeginDrag={() => {
+                  pendingTocScrollItemIdRef.current = null;
+                  pendingTocScrollIndexRef.current = null;
+                }}
+                onScrollToIndexFailed={(info) => {
+                  pendingTocScrollIndexRef.current = info.index;
+                  tocTargetVisibleRef.current = false;
+                  tocListRef.current?.scrollToOffset({
+                    offset: Math.max(0, info.index * info.averageItemLength),
+                    animated: false
+                  });
+                  scheduleTocScroll();
+                }}
+                ListEmptyComponent={<Text style={[styles.emptyToc, isDark && styles.darkMutedText]}>{t.reader.emptyToc}</Text>}
+                renderItem={({ item }) => {
+                  const active = isCurrentChapter(item.href, currentChapterHref);
+                  const tocIndex = toc.findIndex((tocItem) => tocItem.id === item.id);
+                  const hasChildren = hasTocChildren(toc, tocIndex);
+                  const collapsed = collapsedTocIds.has(item.id);
+                  return (
                     <Pressable
-                      disabled={!hasChildren}
-                      onPress={() => toggleTocItem(item)}
-                      style={[styles.tocToggle, !hasChildren && styles.emptyToggle]}
+                      style={[styles.tocRow, active && styles.activeTocRow]}
+                      onPress={() => jumpToChapter(item)}
                     >
-                      <Text style={[styles.tocToggleText, isDark && styles.darkText]}>
-                        {hasChildren ? (collapsed ? "+" : "-") : ""}
+                      <Pressable
+                        disabled={!hasChildren}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 0 }}
+                        onPress={() => toggleTocItem(item)}
+                        style={[styles.tocToggle, !hasChildren && styles.emptyToggle]}
+                      >
+                        <Text style={[styles.tocToggleText, isDark && styles.darkText]}>
+                          {hasChildren ? (collapsed ? "+" : "-") : ""}
+                        </Text>
+                      </Pressable>
+                      <Text style={[styles.tocItemText, isDark && styles.darkText, active && styles.activeTocText]}>
+                        {item.label}
                       </Text>
                     </Pressable>
-                    <Text style={[styles.tocItemText, isDark && styles.darkText, active && styles.activeTocText]}>
-                      {item.label}
-                    </Text>
-                  </Pressable>
-                );
-              }}
-            />
+                  );
+                }}
+              />
+              {tocPositioning && (
+                <View style={styles.tocLoading} pointerEvents="none">
+                  <ActivityIndicator color={colors.accent} />
+                </View>
+              )}
+            </View>
           </Animated.View>
         </View>
       </Modal>
@@ -709,19 +731,27 @@ const styles = StyleSheet.create({
   tocList: {
     flex: 1
   },
+  positioningTocList: {
+    opacity: 0
+  },
+  tocLoading: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center"
+  },
   tocRow: {
     minHeight: TOC_MIN_ROW_HEIGHT,
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.sm,
-    paddingRight: spacing.lg,
-    paddingVertical: spacing.sm,
+    gap: spacing.xs,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xs,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border
   },
   tocToggle: {
-    width: 30,
-    height: 30,
+    width: 24,
+    height: 24,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 6,
@@ -744,6 +774,7 @@ const styles = StyleSheet.create({
     color: colors.ink,
     fontSize: 15,
     lineHeight: 20,
+    includeFontPadding: false,
     fontWeight: "600"
   },
   activeTocText: {
