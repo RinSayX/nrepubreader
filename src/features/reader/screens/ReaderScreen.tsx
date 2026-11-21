@@ -251,7 +251,6 @@ export function ReaderScreen({ navigation, route }: Props) {
 
   function jumpToChapter(item: TocItem) {
     send({ type: "GO_TO_HREF", payload: { href: item.href } });
-    setCurrentChapterHref(item.href);
     closeToc();
   }
 

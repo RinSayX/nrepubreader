@@ -136,13 +136,36 @@ export const READER_HTML = String.raw`
         return bytes.buffer;
       }
 
+      function resolveTocHref(href) {
+        const navigationPath = state.book?.packaging?.navPath || state.book?.packaging?.ncxPath;
+        if (!href || !navigationPath || !state.book.path) {
+          return href;
+        }
+
+        try {
+          // Navigation links are relative to the navigation document, not the OPF.
+          const base = new URL(state.book.resolve(navigationPath), "https://readepub.invalid/");
+          const target = new URL(href, base);
+          if (target.origin !== base.origin) {
+            return href;
+          }
+          const section = state.book.spine.get(state.book.path.relative(target.pathname));
+          if (section) {
+            return section.href + target.hash;
+          }
+        } catch {
+          // Keep the original link for books that already use spine-relative paths.
+        }
+        return href;
+      }
+
       function flattenToc(items, level, path) {
         return (items || []).flatMap((item, index) => {
           const itemPath = path ? path + "." + index : String(index);
           const current = {
             id: item.id || item.href || itemPath,
             label: item.label || "未命名章节",
-            href: item.href,
+            href: resolveTocHref(item.href),
             level
           };
           return [current, ...flattenToc(item.subitems || [], level + 1, itemPath)];
@@ -314,6 +337,23 @@ export const READER_HTML = String.raw`
         }
       }
 
+      async function goToHref(href) {
+        try {
+          if (!state.rendition) {
+            throw new Error("阅读器尚未准备好，请稍后重试。");
+          }
+          if (typeof href !== "string" || !href || !state.book?.spine.get(href)) {
+            throw new Error("目录链接未对应到书籍正文。");
+          }
+          await withTimeout(state.rendition.display(href), 20000, "章节跳转超时，请重试。");
+        } catch (error) {
+          post({
+            type: "RENDER_ERROR",
+            payload: { code: "NAVIGATION_FAILED", message: "章节跳转失败：" + (error?.message || "无法打开目标章节。") }
+          });
+        }
+      }
+
       function receive(message) {
         switch (message.type) {
           case "START_BOOK_TRANSFER":
@@ -349,7 +389,7 @@ export const READER_HTML = String.raw`
             state.rendition && state.rendition.prev();
             break;
           case "GO_TO_HREF":
-            state.rendition && state.rendition.display(message.payload.href);
+            goToHref(message.payload.href);
             break;
           case "APPLY_READER_SETTINGS":
             applySettings(message.payload.theme, message.payload.font);
