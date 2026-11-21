@@ -2,6 +2,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import * as FileSystem from "expo-file-system/legacy";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Animated, FlatList, Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import type { ViewToken } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 
@@ -29,7 +30,7 @@ const PAGE_TAP_RIGHT_RATIO = 0.64;
 const BOOK_TRANSFER_CHUNK_SIZE = 128 * 1024;
 const BOOK_TRANSFER_WINDOW_SIZE = 12;
 const BOOK_TRANSFER_TIMEOUT_MS = 45000;
-const TOC_ROW_HEIGHT = 50;
+const TOC_MIN_ROW_HEIGHT = 50;
 
 type ActiveBookTransfer = {
   bookId: string;
@@ -58,6 +59,7 @@ export function ReaderScreen({ navigation, route }: Props) {
   const tocListRef = useRef<FlatList<TocItem>>(null);
   const pendingTocScrollItemIdRef = useRef<string | null>(null);
   const pendingTocScrollIndexRef = useRef<number | null>(null);
+  const tocScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const preference = useLibraryStore((state) => state.preference);
   const getBook = useLibraryStore((state) => state.getBook);
   const getProgress = useLibraryStore((state) => state.getProgress);
@@ -74,12 +76,11 @@ export function ReaderScreen({ navigation, route }: Props) {
   const [tocVisible, setTocVisible] = useState(false);
   const isDark = preference.themeMode === "dark";
   const t = getTranslations(preference.language);
-  const tocDrawerWidth = Math.min(Math.max(width * 0.82, 280), 380);
   const visibleToc = useMemo(() => getVisibleTocItems(toc, collapsedTocIds), [collapsedTocIds, toc]);
   const collapsibleTocIds = useMemo(() => getCollapsibleTocIds(toc), [toc]);
   const tocDrawerTranslateX = tocDrawerProgress.interpolate({
     inputRange: [0, 1],
-    outputRange: [-tocDrawerWidth, 0]
+    outputRange: [-width, 0]
   });
   const leftTapZoneWidth = Math.max(0, width * PAGE_TAP_LEFT_RATIO - EDGE_GESTURE_GUARD);
   const rightTapZoneWidth = Math.max(0, width * (1 - PAGE_TAP_RIGHT_RATIO) - EDGE_GESTURE_GUARD);
@@ -270,6 +271,12 @@ export function ReaderScreen({ navigation, route }: Props) {
   }
 
   function closeToc() {
+    pendingTocScrollItemIdRef.current = null;
+    pendingTocScrollIndexRef.current = null;
+    if (tocScrollTimerRef.current) {
+      clearTimeout(tocScrollTimerRef.current);
+      tocScrollTimerRef.current = null;
+    }
     Animated.timing(tocDrawerProgress, {
       toValue: 0,
       duration: 180,
@@ -288,6 +295,42 @@ export function ReaderScreen({ navigation, route }: Props) {
     }
   }, [tocDrawerProgress, tocVisible]);
 
+  const scheduleTocScroll = useCallback((finish = false) => {
+    if (tocScrollTimerRef.current) {
+      clearTimeout(tocScrollTimerRef.current);
+    }
+    tocScrollTimerRef.current = setTimeout(() => {
+      tocScrollTimerRef.current = null;
+      const targetIndex = pendingTocScrollIndexRef.current;
+      if (targetIndex === null) {
+        return;
+      }
+      if (finish) {
+        pendingTocScrollItemIdRef.current = null;
+        pendingTocScrollIndexRef.current = null;
+      }
+      tocListRef.current?.scrollToIndex({
+        index: targetIndex,
+        animated: false,
+        viewPosition: 0.5
+      });
+    }, 80);
+  }, []);
+
+  const onTocViewableItemsChanged = useCallback(({ viewableItems }: { viewableItems: ViewToken<TocItem>[] }) => {
+    const targetIndex = pendingTocScrollIndexRef.current;
+    if (targetIndex !== null && viewableItems.some((item) => item.index === targetIndex)) {
+      // Center again after the target row's wrapped title has been measured.
+      scheduleTocScroll(true);
+    }
+  }, [scheduleTocScroll]);
+
+  useEffect(() => () => {
+    if (tocScrollTimerRef.current) {
+      clearTimeout(tocScrollTimerRef.current);
+    }
+  }, []);
+
   useEffect(() => {
     if (!tocVisible || !pendingTocScrollItemIdRef.current || visibleToc.length === 0) {
       return;
@@ -298,40 +341,8 @@ export function ReaderScreen({ navigation, route }: Props) {
       return;
     }
     pendingTocScrollIndexRef.current = targetIndex;
-
-    const timeoutId = setTimeout(() => {
-      tocListRef.current?.scrollToOffset({
-        offset: Math.max(0, (targetIndex - 4) * TOC_ROW_HEIGHT),
-        animated: false
-      });
-      tocListRef.current?.scrollToIndex({
-        index: targetIndex,
-        animated: false,
-        viewPosition: 0.5
-      });
-    }, 120);
-
-    return () => clearTimeout(timeoutId);
-  }, [tocVisible, visibleToc]);
-
-  function finishPendingTocScroll() {
-    const targetIndex = pendingTocScrollIndexRef.current;
-    if (targetIndex === null) {
-      return;
-    }
-
-    const timeoutId = setTimeout(() => {
-      tocListRef.current?.scrollToIndex({
-        index: targetIndex,
-        animated: false,
-        viewPosition: 0.5
-      });
-      pendingTocScrollItemIdRef.current = null;
-      pendingTocScrollIndexRef.current = null;
-    }, 80);
-
-    return () => clearTimeout(timeoutId);
-  }
+    scheduleTocScroll();
+  }, [scheduleTocScroll, tocVisible, visibleToc]);
 
   function toggleTocItem(item: TocItem) {
     setCollapsedTocIds((current) => {
@@ -457,16 +468,23 @@ export function ReaderScreen({ navigation, route }: Props) {
         </View>
       </View>
 
-      <Modal visible={tocVisible} animationType="fade" transparent onRequestClose={closeToc}>
-        <View style={styles.modalScrim}>
-          <Pressable style={styles.scrimCloseArea} onPress={closeToc} />
+      <Modal
+        visible={tocVisible}
+        animationType="none"
+        presentationStyle="fullScreen"
+        statusBarTranslucent
+        navigationBarTranslucent
+        onRequestClose={closeToc}
+      >
+        <View style={[styles.tocScreen, isDark && styles.darkTocPanel]}>
           <Animated.View
             style={[
               styles.tocPanel,
               {
-                width: tocDrawerWidth,
                 paddingTop: insets.top,
                 paddingBottom: insets.bottom,
+                paddingLeft: insets.left,
+                paddingRight: insets.right,
                 transform: [{ translateX: tocDrawerTranslateX }]
               },
               isDark && styles.darkTocPanel
@@ -492,27 +510,22 @@ export function ReaderScreen({ navigation, route }: Props) {
 
             <FlatList
               ref={tocListRef}
+              style={styles.tocList}
               data={visibleToc}
               keyExtractor={(item) => item.id}
-              getItemLayout={(_data, index) => ({
-                length: TOC_ROW_HEIGHT,
-                offset: TOC_ROW_HEIGHT * index,
-                index
-              })}
-              onContentSizeChange={finishPendingTocScroll}
-              onLayout={finishPendingTocScroll}
+              onLayout={() => scheduleTocScroll()}
+              onViewableItemsChanged={onTocViewableItemsChanged}
+              onScrollBeginDrag={() => {
+                pendingTocScrollItemIdRef.current = null;
+                pendingTocScrollIndexRef.current = null;
+              }}
               onScrollToIndexFailed={(info) => {
+                pendingTocScrollIndexRef.current = info.index;
                 tocListRef.current?.scrollToOffset({
-                  offset: Math.max(0, info.index * TOC_ROW_HEIGHT),
+                  offset: Math.max(0, info.index * info.averageItemLength),
                   animated: false
                 });
-                setTimeout(() => {
-                  tocListRef.current?.scrollToIndex({
-                    index: info.index,
-                    animated: false,
-                    viewPosition: 0.5
-                  });
-                }, 80);
+                scheduleTocScroll();
               }}
               ListEmptyComponent={<Text style={[styles.emptyToc, isDark && styles.darkMutedText]}>{t.reader.emptyToc}</Text>}
               renderItem={({ item }) => {
@@ -522,7 +535,7 @@ export function ReaderScreen({ navigation, route }: Props) {
                 const collapsed = collapsedTocIds.has(item.id);
                 return (
                   <Pressable
-                    style={[styles.tocRow, active && styles.activeTocRow, { paddingLeft: spacing.lg + item.level * 18 }]}
+                    style={[styles.tocRow, active && styles.activeTocRow, { paddingLeft: spacing.lg + Math.min(item.level * 18, width * 0.2) }]}
                     onPress={() => jumpToChapter(item)}
                   >
                     <Pressable
@@ -623,19 +636,12 @@ const styles = StyleSheet.create({
     color: colors.ink,
     fontWeight: "800"
   },
-  modalScrim: {
+  tocScreen: {
     flex: 1,
-    justifyContent: "flex-start",
-    backgroundColor: "rgba(0,0,0,0.35)"
-  },
-  scrimCloseArea: {
-    ...StyleSheet.absoluteFillObject
+    backgroundColor: colors.paper
   },
   tocPanel: {
-    height: "100%",
-    zIndex: 1,
-    borderTopRightRadius: 8,
-    borderBottomRightRadius: 8,
+    flex: 1,
     backgroundColor: colors.paper,
     overflow: "hidden"
   },
@@ -700,12 +706,16 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     color: colors.muted
   },
+  tocList: {
+    flex: 1
+  },
   tocRow: {
-    height: TOC_ROW_HEIGHT,
+    minHeight: TOC_MIN_ROW_HEIGHT,
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
     paddingRight: spacing.lg,
+    paddingVertical: spacing.sm,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border
   },
